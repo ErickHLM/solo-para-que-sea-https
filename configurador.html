@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configurador Mando nRF24</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#1a2233; --panel2:#232d42; --line:#2e3a54;
+    --txt:#e6ebf5; --dim:#9aa7c2; --acc:#4ea1ff; --ok:#3ad29f; --warn:#ffb454; --err:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,Segoe UI,Roboto,sans-serif;line-height:1.5}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:650}
+  .wrap{max-width:860px;margin:0 auto;padding:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px 20px;margin-bottom:18px}
+  .card h2{font-size:14px;margin:0 0 14px;color:var(--acc);
+    text-transform:uppercase;letter-spacing:.06em}
+  label{display:block;font-size:13px;color:var(--dim);margin:0 0 4px}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);border-radius:9px;padding:9px 11px;font-size:14px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--acc)}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{background:var(--acc);color:#04203f;border:0;border-radius:9px;
+    padding:10px 16px;font-size:14px;font-weight:650;cursor:pointer;font-family:inherit}
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  button.warn{background:var(--warn);color:#3a2600}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .pill{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--dim)}
+  .pill.on{color:var(--ok);border-color:var(--ok)}
+  .pill.big{font-size:14px;font-weight:650;padding:7px 16px}
+  .pill.listen{color:var(--warn);border-color:var(--warn);animation:pulse 1s infinite}
+  .pill.hit{color:#04203f;background:var(--ok);border-color:var(--ok)}
+  @keyframes pulse{50%{opacity:.45}}
+  .steps{display:flex;flex-direction:column;gap:8px}
+  .step{display:flex;align-items:center;gap:12px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+  .step .num{width:24px;height:24px;flex:none;border-radius:50%;background:var(--acc);
+    color:#04203f;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .step.done .num{background:var(--ok)}
+  .step button{flex:none}
+  #spectrum{display:flex;align-items:flex-end;gap:1px;height:120px;
+    background:#070b13;border:1px solid var(--line);border-radius:10px;padding:8px 6px;overflow:hidden}
+  .barCh{flex:1;min-width:2px;background:var(--line);border-radius:2px 2px 0 0;
+    height:2px;transition:height .12s,background .12s}
+  .barCh.act{background:var(--ok)}
+  .barCh.hot{background:var(--warn)}
+  .barCh.src0{background:#4ea1ff}.barCh.src1{background:#3ad29f}
+  .barCh.src2{background:#ffb454}.barCh.src3{background:#ff6b6b}.barCh.src4{background:#c07bff}
+  .fuente{display:flex;align-items:center;gap:10px;padding:9px 11px;margin-top:8px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+  .fuente .dot{width:12px;height:12px;border-radius:50%;flex:none}
+  .fuente .info{flex:1;font-size:13px}
+  .fuente .info b{font-family:ui-monospace,Consolas,monospace}
+  .fuente .sub{font-size:11px;color:var(--dim)}
+  .fuente button{padding:7px 12px;font-size:13px}
+  #rawLog,#clonLog,#identLog{background:#070b13;border:1px solid var(--line);border-radius:10px;
+    padding:10px;height:150px;overflow:auto;font-family:ui-monospace,Consolas,monospace;
+    font-size:12px;white-space:pre;color:#c7d3ea}
+  #clonLog .ok{color:var(--ok)} #clonLog .no{color:var(--dim)}
+  #identLog{height:auto;min-height:60px}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt)}
+  .chk input{width:auto}
+  #log{background:#070b13;border:1px solid var(--line);border-radius:10px;
+    padding:12px;height:190px;overflow:auto;font-family:ui-monospace,Consolas,monospace;
+    font-size:12px;white-space:pre-wrap;color:#c7d3ea}
+  .hint{font-size:12px;color:var(--dim);margin-top:6px}
+  .tag{font-size:11px;color:var(--warn)}
+  a{color:var(--acc)}
+  /* --- Pestañas --- */
+  .tabbar{display:flex;gap:8px;flex-wrap:wrap;max-width:860px;margin:0 auto;padding:16px 22px 0}
+  .tabbar button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);font-weight:600}
+  .tabbar button.active{background:var(--acc);color:#04203f;border-color:var(--acc)}
+  .tabbar button.hidden{display:none}
+  /* --- Telemetria / vuelo --- */
+  .tv-scene{height:230px;display:flex;align-items:center;justify-content:center;perspective:800px}
+  .tv-view{transform-style:preserve-3d;transform:rotateX(62deg)}
+  .tv-drone{position:relative;width:150px;height:150px;transform-style:preserve-3d;transition:transform .06s linear}
+  .tv-arm{position:absolute;left:50%;top:50%;width:125px;height:10px;margin:-5px 0 0 -62px;border-radius:6px;transform-origin:50% 50%}
+  .tv-arm.a{transform:rotate(45deg)} .tv-arm.b{transform:rotate(-45deg)}
+  .tv-cw{background:linear-gradient(90deg,#1b3b37,#3ad29f)} .tv-ccw{background:linear-gradient(90deg,#3d2a16,#ffb454)}
+  .tv-mot{position:absolute;width:40px;height:40px;border-radius:50%;margin:-20px 0 0 -20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#04203f}
+  .tv-mot.cw{background:#3ad29f} .tv-mot.ccw{background:#ffb454}
+  .tv-nose{position:absolute;left:50%;bottom:-2px;width:0;height:0;margin-left:-9px;border-left:9px solid transparent;border-right:9px solid transparent;border-top:16px solid var(--acc)}
+  .tv-hz{width:175px;height:175px;border-radius:50%;overflow:hidden;border:3px solid var(--line);position:relative;margin:0 auto;background:#000}
+  .tv-hzin{position:absolute;left:-50%;top:-50%;width:200%;height:200%;transition:transform .06s linear}
+  .tv-sky{position:absolute;left:0;top:0;width:100%;height:50%;background:#3a7fb5} .tv-gnd{position:absolute;left:0;top:50%;width:100%;height:50%;background:#7a5a33}
+  .tv-hl{position:absolute;left:0;top:50%;width:100%;height:2px;background:#fff;margin-top:-1px}
+  .tv-stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+  .tv-stat .k{font-size:11px;color:var(--dim)} .tv-stat .v{font-size:17px;font-weight:650}
+  .tv-bar{display:grid;grid-template-columns:62px 1fr 46px;gap:8px;align-items:center;margin-bottom:7px;font-size:12px;color:var(--dim)}
+  .tv-track{height:13px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .tv-fill{height:100%;width:0;background:linear-gradient(90deg,#2d6,#5f6)}
+  .tv-cfg{display:grid;grid-template-columns:1fr 90px 80px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .tv-cfg input{text-align:right}
+  .leaflet-container{background:#070b13}
+  /* --- Vuelo a pantalla completa (estilo DJI) --- */
+  #cardTele{display:none;position:fixed;inset:0;z-index:9999;padding:0;margin:0;border:0;border-radius:0;background:#070b13;max-width:none}
+  #flyMap{position:absolute;inset:0;background:#070b13;z-index:1}
+  .ov{position:absolute;background:rgba(15,20,32,.82);border:1px solid var(--line);border-radius:12px;padding:8px 11px;font-size:12px;z-index:1000;line-height:1.55}
+  .ov b{color:#fff;font-variant-numeric:tabular-nums}
+  .ovtl{top:14px;left:14px;padding:6px}
+  .ovtr{top:14px;right:14px;min-width:168px}
+  .ovbc{bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ Configurador Mando nRF24</h1>
+  <span id="estado" class="pill">Desconectado</span>
+  <span style="flex:1"></span>
+  <button id="btnConn">Conectar por USB</button>
+  <button id="btnDisc" class="ghost" disabled>Desconectar</button>
+</header>
+
+<div class="tabbar" id="tabbar">
+  <button data-t="ayuda">ℹ️ Ayuda</button>
+  <button data-t="general">🎛️ General</button>
+  <button data-t="clonar">📥 Clonar</button>
+  <button data-t="perfiles">🗂️ Perfiles</button>
+  <button data-t="dron">⚙️ Config dron</button>
+  <button data-t="vuelo">📡 Vuelo</button>
+</div>
+
+<div class="wrap">
+
+  <div class="card" id="aviso" data-tab="ayuda">
+    <h2>Cómo se usa</h2>
+    <ol style="margin:0;padding-left:18px;color:var(--dim);font-size:13px">
+      <li>Flashea <b>mando_dron_nrf24_clonador.ino</b> en el ESP32 y conéctalo por USB.</li>
+      <li>Pulsa <b>Conectar por USB</b> (Chrome o Edge · requiere Web Serial) y elige el puerto.</li>
+      <li>Pulsa <b>Leer del mando</b> para traer la config actual.</li>
+      <li>Mete los <b>canales</b> y la <b>dirección</b> que viste con el escáner, ajusta ejes y pulsa <b>Enviar</b> → <b>Guardar</b>.</li>
+      <li>Enciende el dron a 30 cm y pulsa <b>BIND</b>.</li>
+    </ol>
+    <p class="hint">Zona muerta viene a <b>0</b> por defecto (como pediste). Si el stick tiembla en reposo, súbela un poco.</p>
+  </div>
+
+  <div class="card" id="cardCaptura" data-tab="clonar">
+    <h2>Captura del mando original</h2>
+    <div class="row" style="margin-bottom:10px">
+      <span id="capEstado" class="pill big">Detenido</span>
+      <span style="flex:1"></span>
+      <button id="btnIdent" disabled>🔎 Identificar chip</button>
+      <button id="btnClonar" disabled>📥 Clonar del mando (XN297)</button>
+      <button id="btnSniff" class="ghost" disabled>Sniffer</button>
+      <button id="btnStop" class="warn" disabled>■ Detener</button>
+    </div>
+
+    <p class="hint" style="margin-top:0">
+      El escáner ve <b>todo</b> el 2.4 GHz (tu WiFi, Bluetooth, vecinos…), por eso salen varias
+      señales. Para aislar <b>solo</b> tu mando, mide primero el fondo con él apagado y luego
+      enciéndelo: se resaltará únicamente lo que <b>cambie</b>.
+    </p>
+
+    <div class="steps">
+      <div class="step" id="step1">
+        <span class="num">1</span>
+        <div style="flex:1">
+          <b>Mide el fondo</b> — con el mando <b>APAGADO</b>.
+          <div class="hint" style="margin:2px 0 0">Deja quieto todo lo demás. Tarda ~4 s.</div>
+        </div>
+        <button id="btnFondo" disabled>Medir fondo</button>
+      </div>
+      <div class="step" id="step2">
+        <span class="num">2</span>
+        <div style="flex:1">
+          <b>Detecta el mando</b> — <b>ENCIÉNDELO</b> a 10–30 cm.
+          <div class="hint" style="margin:2px 0 0">Enciéndelo y apágalo un par de veces: la barra que aparece y desaparece es la suya.</div>
+        </div>
+        <button id="btnBuscar" disabled>Detectar mando</button>
+      </div>
+    </div>
+
+    <div id="specWrap" style="display:none;margin-top:12px">
+      <div id="spectrum"></div>
+      <div class="row" style="margin-top:10px;align-items:center">
+        <span class="hint" style="margin:0">Canal(es) del mando:</span>
+        <span id="topCanales" style="font-family:ui-monospace,Consolas,monospace;color:var(--ok)">—</span>
+        <span style="flex:1"></span>
+        <button id="btnUsarChan" class="ghost" disabled>Usar como canales de salto ↑</button>
+      </div>
+    </div>
+
+    <div id="sniffWrap" style="display:none;margin-top:12px">
+      <label>Velocidad del sniffer</label>
+      <div class="row" style="margin-bottom:8px">
+        <select id="sniffRate" style="max-width:160px">
+          <option value="1000">1 Mbps (Bayang)</option>
+          <option value="250">250 Kbps</option>
+          <option value="2000">2 Mbps</option>
+        </select>
+        <span class="hint" style="margin:0">Si no capta nada, prueba otra velocidad.</span>
+      </div>
+      <div id="rawLog"></div>
+    </div>
+
+    <div id="fuentesWrap" style="display:none;margin-top:14px">
+      <label>Direcciones detectadas <span class="tag">(elige qué mando clonar)</span></label>
+      <div id="fuentes"></div>
+      <p class="hint">Cada fila es una dirección distinta que se repite = un transmisor distinto.
+        Si tienes varios mandos, enciende uno cada vez para saber cuál es cuál.</p>
+    </div>
+
+    <div id="identWrap" style="display:none;margin-top:14px">
+      <label>Identificación del chip del mando</label>
+      <div id="identVeredicto" class="fuente" style="display:none"></div>
+      <div id="identLog"></div>
+      <p class="hint">Enciende el <b>mando original</b> pegado al nRF24 y espera ~15 s. Prueba las
+        3 velocidades buscando paquetes XN297 válidos.</p>
+    </div>
+
+    <div id="clonWrap" style="display:none;margin-top:14px">
+      <div class="row" style="margin-bottom:6px;align-items:center">
+        <label style="margin:0">Paquetes descifrados del mando original</label>
+        <span style="flex:1"></span>
+        <label style="margin:0">Velocidad</label>
+        <select id="clonRate" style="max-width:130px">
+          <option value="1000">1 Mbps</option>
+          <option value="250">250 Kbps</option>
+          <option value="2000">2 Mbps</option>
+        </select>
+      </div>
+      <div id="clonFound" class="fuente" style="display:none"></div>
+      <div id="clonLog"></div>
+      <div class="row" style="margin-top:8px;align-items:center">
+        <button id="btnCrearPerfil" class="ghost">🧬 Crear perfil de la captura</button>
+        <span id="crearPerfilInfo" class="hint" style="margin:0"></span>
+      </div>
+      <p class="hint">
+        Enciende el <b>mando original</b> a 10–30 cm. Si el nRF24 capta su XN297, verás sus tramas
+        <b>descifradas</b> (col. <b>OK</b> = CRC válido). En cuanto pille un paquete de <b>bind</b>,
+        rellenará arriba la <b>dirección</b> y los <b>canales</b> reales del mando — pulsa <b>Guardar</b>.
+        Si no aparece nada, prueba otra <b>velocidad</b>; si sigue vacío, tu módulo nRF24 no recibe
+        XN297 (típico en clones Si24R1).
+      </p>
+    </div>
+  </div>
+
+  <div class="card" data-tab="clonar">
+    <h2>Radio / Protocolo</h2>
+    <div class="grid g2">
+      <div>
+        <label>Dirección TX (5 bytes hex)</label>
+        <input id="addr" placeholder="A5,C3,11,22,33">
+        <p class="hint">Cualquiera vale: el dron acepta la que le proponga el mando al auto-bindear.</p>
+      </div>
+      <div>
+        <label>Canales de salto</label>
+        <input id="chan" placeholder="0,18,50,82" disabled style="opacity:.6">
+        <p class="hint">Se calculan solos a partir de la dirección (como el mando real). No se editan.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+      <label>Sub-protocolo <span class="tag">(mismo chip XN297, distinto "blindeo")</span></label>
+      <div class="row">
+        <select id="proto" style="max-width:220px">
+          <option value="0">BAYANG (por defecto)</option>
+          <option value="1">H8_3D</option>
+          <option value="2">X16_AH</option>
+          <option value="3">IRDRONE</option>
+          <option value="4">DHD_D4</option>
+        </select>
+        <button id="btnProto" disabled>Aplicar y bindear</button>
+        <span style="flex:1"></span>
+        <button id="btnCiclo" class="warn" disabled>🔍 Probar todos</button>
+      </div>
+      <p class="hint" id="protoHint">
+        ¿No sabes cuál usa tu 5Monster? Pon el dron encendido a 30 cm y pulsa <b>Probar todos</b>:
+        el mando irá cambiando de sub-protocolo cada ~6 s. Cuando el dron reaccione (LED fijo,
+        motores, pitido), pulsa <b>Detener</b> y ese es el bueno — <b>Guarda</b> para dejarlo fijo.
+      </p>
+      <div class="row" style="margin-top:6px">
+        <span id="protoEstado" class="pill">—</span>
+        <button id="btnCicloStop" class="ghost" disabled>■ Detener</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="cardModo" data-tab="always">
+    <h2>Modo del mando <span class="tag">(no se activan a la vez)</span></h2>
+    <div class="row" style="align-items:center">
+      <span>Modo actual:</span>
+      <span id="modoActual" class="pill">—</span>
+      <span style="flex:1"></span>
+      <button id="btnModoNRF" disabled>🛩️ Drones (nRF24)</button>
+      <button id="btnModoESPNOW" class="ghost" disabled>🚁 Dron DIY (ESP-NOW)</button>
+      <button id="btnModoBLE" class="ghost" disabled>🎮 Simulador (BLE)</button>
+    </div>
+    <p class="hint">
+      <b>Drones (nRF24)</b>: pilota tus drones reales con los perfiles. ·
+      <b>Simulador (BLE)</b>: el mando se vuelve un gamepad Bluetooth para el PC (empareja
+      "Mando Dron DIY"). Al cambiar, el ESP32 <b>se reinicia</b> en ese modo (~2 s) y tendrás que
+      <b>reconectar por USB</b> aquí. En modo BLE no hay radio nRF24 (y viceversa), así que no interfieren.
+    </p>
+  </div>
+
+  <div class="card" id="cardTele" data-tab="vuelo">
+    <div id="flyMap"></div>
+    <canvas id="tvRadar" width="300" height="300" style="position:absolute;left:14px;bottom:72px;display:none;background:rgba(7,11,19,.88);border:1px solid var(--line);border-radius:12px"></canvas>
+    <div class="ov ovtl">
+      <div class="tv-hz" style="width:94px;height:94px;border-width:2px"><div class="tv-hzin" id="tvHz"><div class="tv-sky"></div><div class="tv-gnd"></div><div class="tv-hl"></div></div></div>
+    </div>
+    <div class="ov ovtr">
+      <div style="text-align:right;margin-bottom:6px">
+        <button id="tvMapToggle" class="ghost" style="padding:4px 9px">🧭 radar</button>
+        <button id="tvExit" class="ghost" style="padding:4px 10px">✕ salir</button>
+      </div>
+      <div><span id="tvLink" class="pill">—</span> <span id="tvArm" class="pill">desarmado</span></div>
+      <div>🛰️ <b id="tvSats">0</b> sat · <span id="tvFix">—</span></div>
+      <div>📶 RSSI <b id="tvRssi">—</b></div>
+      <div>🏠 <b id="tvDist">—</b> · rumbo <span id="tvBrg">—</span></div>
+      <div>R <b id="tvRoll">0°</b> · P <b id="tvPitch">0°</b> · Y <b id="tvYaw">0°</b></div>
+    </div>
+    <div class="ov ovbc">
+      <button id="tvFly" class="ghost" disabled>Modo vuelo</button>
+      <button id="tvArmB" disabled>Armar</button>
+      <button id="tvDisarm" class="warn" disabled>Desarmar</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardDron" data-tab="dron">
+    <h2>⚙️ Ajustes del dron <span id="tvCfgState" class="pill">—</span></h2>
+    <div id="tvCfgBox"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="tvSave" disabled>💾 Guardar en el dron</button>
+      <button id="tvReset" class="warn" disabled>↩ Restaurar</button>
+      <button id="tvGps" class="ghost" disabled>📡 GPS: —</button>
+      <button id="tvCal" class="ghost" disabled>🎯 Calibrar giro</button>
+    </div>
+    <h2 style="margin-top:16px">Visualización <span class="tag">(banco, sin hélices)</span></h2>
+    <div class="grid g2">
+      <div class="tv-scene"><div class="tv-view"><div class="tv-drone" id="tvDrone">
+        <div class="tv-arm a tv-cw"></div><div class="tv-arm b tv-ccw"></div><div class="tv-nose"></div>
+        <div class="tv-mot cw"  id="tvM0" style="left:19%;top:81%">M0</div>
+        <div class="tv-mot ccw" id="tvM3" style="left:81%;top:81%">M3</div>
+        <div class="tv-mot ccw" id="tvM1" style="left:19%;top:19%">M1</div>
+        <div class="tv-mot cw"  id="tvM2" style="left:81%;top:19%">M2</div>
+      </div></div></div>
+      <div>
+        <div class="tv-bar"><span>M0·FL</span><div class="tv-track"><div class="tv-fill" id="tvB0"></div></div><span id="tvT0">0</span></div>
+        <div class="tv-bar"><span>M1·RL</span><div class="tv-track"><div class="tv-fill" id="tvB1"></div></div><span id="tvT1">0</span></div>
+        <div class="tv-bar"><span>M2·RR</span><div class="tv-track"><div class="tv-fill" id="tvB2"></div></div><span id="tvT2">0</span></div>
+        <div class="tv-bar"><span>M3·FR</span><div class="tv-track"><div class="tv-fill" id="tvB3"></div></div><span id="tvT3">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="cardPerfiles" data-tab="perfiles">
+    <h2>Perfiles de mando <span class="tag">(cada dron clonado = un archivo)</span></h2>
+    <div class="row" style="margin-bottom:10px">
+      <select id="perfilSel" style="max-width:260px"></select>
+      <button id="btnPerfCargar" disabled>Cargar en el mando</button>
+      <button id="btnPerfLeer" class="ghost" disabled>Leer del mando</button>
+    </div>
+    <label>Perfil (editable) — JSON</label>
+    <textarea id="perfilJson" spellcheck="false"
+      style="width:100%;min-height:150px;background:#070b13;border:1px solid var(--line);
+      color:#c7d3ea;border-radius:10px;padding:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="btnPerfDescargar" class="ghost">⬇ Descargar .json</button>
+      <label class="ghost" style="display:inline-block;padding:10px 16px;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-size:14px;font-weight:650">
+        ⬆ Subir .json <input id="perfilFile" type="file" accept=".json,application/json" style="display:none">
+      </label>
+      <span style="flex:1"></span>
+      <button id="btnPerfSave" class="warn" disabled>Guardar en NVS</button>
+    </div>
+    <p class="hint">Elige un perfil y <b>Cárgalo en el mando</b>. Para clonar uno nuevo: usa
+      <b>Clonar del mando (XN297)</b> arriba moviendo todas las palancas, pulsa
+      <b>🧬 Crear perfil de la captura</b> y descárgalo. Guárdalo en la carpeta <code>perfiles/</code>.</p>
+  </div>
+
+  <div class="card" data-tab="general">
+    <h2>Ejes y sensibilidad</h2>
+    <div class="grid g2">
+      <div>
+        <label>Expo (curva de sensibilidad)</label>
+        <input id="expo" type="number" step="0.05" placeholder="1.40">
+        <p class="hint">1.0 = lineal · 1.4 = suave en el centro, precisa.</p>
+      </div>
+      <div>
+        <label>Zona muerta (cuentas ADC)</label>
+        <input id="dz" type="number" step="1" placeholder="0">
+        <p class="hint"><b>0</b> = sin zona muerta (recorrido completo).</p>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <label>Invertir ejes</label>
+      <div class="row">
+        <span class="chk"><input type="checkbox" id="invLX"> LX</span>
+        <span class="chk"><input type="checkbox" id="invLY"> LY</span>
+        <span class="chk"><input type="checkbox" id="invRX"> RX</span>
+        <span class="chk"><input type="checkbox" id="invRY"> RY</span>
+      </div>
+      <p class="hint">Si un eje va al revés en el dron, márcalo aquí (no recablees).</p>
+    </div>
+  </div>
+
+  <div class="card" data-tab="general">
+    <h2>Calibración por eje <span class="tag">(min, centro, max — del sketch de calibración)</span></h2>
+    <div id="calBox" class="grid" style="gap:10px"></div>
+    <p class="hint">El ADC del ESP32 no es lineal en los extremos: mide topes reales y el reposo de cada palanca.</p>
+  </div>
+
+  <div class="card" data-tab="general">
+    <h2>Acciones</h2>
+    <div class="row">
+      <button id="btnLeer" disabled>Leer del mando</button>
+      <button id="btnEnviar" disabled>Enviar cambios</button>
+      <button id="btnSave" class="ghost" disabled>Guardar en NVS</button>
+      <button id="btnBind" class="warn" disabled>BIND (emparejar)</button>
+    </div>
+  </div>
+
+  <div class="card" data-tab="always">
+    <h2>Consola serie</h2>
+    <div id="log"></div>
+  </div>
+
+  <p class="hint">Ejes del ESP32: LX,LY = stick izquierdo (roll/pitch) · RX,RY = stick derecho (yaw/throttle). Ver CABLEADO.md.</p>
+</div>
+
+<script>
+const EJES = ["LX","LY","RX","RY"];
+let port=null, reader=null, writer=null, lineBuf="";
+const cal = [ {min:0,cen:1900,max:4095},{min:0,cen:1900,max:4095},
+              {min:0,cen:1900,max:4095},{min:0,cen:1900,max:4095} ];
+
+const $ = id => document.getElementById(id);
+const log = (t,cls) => { const l=$("log"); l.innerHTML += (cls?`<span style="color:var(--${cls})">${t}</span>`:t)+"\n"; l.scrollTop=l.scrollHeight; };
+
+// --- construir campos de calibración ---
+function pintarCal(){
+  const box=$("calBox"); box.innerHTML="";
+  EJES.forEach((e,i)=>{
+    const d=document.createElement("div");
+    d.className="grid g4"; d.style.alignItems="end";
+    d.innerHTML=`<div><label>${e}</label><input disabled value="eje ${i}" style="opacity:.6"></div>
+      <div><label>min</label><input type="number" id="cmin${i}" value="${cal[i].min}"></div>
+      <div><label>centro</label><input type="number" id="ccen${i}" value="${cal[i].cen}"></div>
+      <div><label>max</label><input type="number" id="cmax${i}" value="${cal[i].max}"></div>`;
+    box.appendChild(d);
+  });
+}
+pintarCal();
+
+// ------------- Captura del mando original (metodo DIFERENCIAL) -------------
+// El escaner ve TODO el 2.4 GHz. Para aislar el mando: medimos el "fondo" con
+// el mando apagado y luego restamos ese fondo. Lo que sobresale = el mando.
+const NCH = 126;
+let barras = [];
+let baseline = new Float32Array(NCH);   // ruido de fondo (mando apagado)
+let acc      = new Float32Array(NCH);   // actividad con el mando encendido
+let disp     = new Float32Array(NCH);   // lo que se dibuja (diferencia)
+let capturando = null;     // null | "scan" | "sniff"
+let fase = null;           // "fondo" | "buscar"
+let fondoLineas = 0, baselineListo = false;
+const FONDO_LINEAS = 12;   // ~4 s de medida de fondo (12 barridos de ~340 ms)
+
+(function construirEspectro(){
+  const s = $("spectrum");
+  for(let ch=0; ch<NCH; ch++){
+    const b = document.createElement("div");
+    b.className = "barCh"; b.title = "CH "+ch+" ("+(2400+ch)+" MHz)";
+    s.appendChild(b); barras.push(b);
+  }
+})();
+
+function setCapEstado(txt, cls){
+  const p = $("capEstado");
+  p.className = "pill big" + (cls?(" "+cls):"");
+  p.textContent = txt;
+}
+
+const COLORES = ["#4ea1ff","#3ad29f","#ffb454","#ff6b6b","#c07bff"];
+
+// ---- Paso 1: medir el fondo (mando apagado) ----
+function medirFondo(){
+  capturando = "scan"; fase = "fondo"; fondoLineas = 0; baselineListo = false;
+  baseline.fill(0); acc.fill(0); disp.fill(0);
+  $("specWrap").style.display = ""; $("sniffWrap").style.display = "none";
+  $("fuentesWrap").style.display = "none";
+  $("step1").classList.remove("done"); $("step2").classList.remove("done");
+  $("btnFondo").disabled = true; $("btnBuscar").disabled = true;
+  $("btnSniff").disabled = true; $("btnStop").disabled = false;
+  setCapEstado("Midiendo fondo…", "listen");
+  enviar("SCAN");
+}
+function finalizarFondo(){
+  fase = null; baselineListo = true;
+  enviar("STOP"); capturando = null;
+  $("step1").classList.add("done");
+  $("btnFondo").disabled = false; $("btnBuscar").disabled = false;
+  if(writer) $("btnSniff").disabled = false;
+  $("btnStop").disabled = true;
+  setCapEstado("Fondo medido ✓ — enciende el mando y pulsa «Detectar mando»", "on");
+}
+
+// ---- Paso 2: detectar el mando (encendido), restando el fondo ----
+function buscarMando(){
+  if(!baselineListo){ log("Mide primero el fondo (paso 1).","warn"); return; }
+  capturando = "scan"; fase = "buscar"; acc.fill(0); disp.fill(0);
+  $("specWrap").style.display = ""; $("fuentesWrap").style.display = "none";
+  $("btnFondo").disabled = true; $("btnBuscar").disabled = true;
+  $("btnSniff").disabled = true; $("btnStop").disabled = false;
+  setCapEstado("Buscando el mando… enciéndelo y apágalo", "listen");
+  enviar("SCAN");
+}
+
+function procesarScan(v){
+  const cur = new Float32Array(NCH);
+  if(v) v.split(",").forEach(par=>{
+    const [ch,c] = par.split(":").map(Number);
+    if(ch>=0 && ch<NCH) cur[ch] = c||0;
+  });
+
+  if(fase === "fondo"){
+    for(let ch=0; ch<NCH; ch++) baseline[ch] = baseline[ch]*0.6 + cur[ch]*0.4;
+    for(let ch=0; ch<NCH; ch++) disp[ch] = baseline[ch];
+    pintarDiferencia(false);
+    if(++fondoLineas >= FONDO_LINEAS) finalizarFondo();
+    return;
+  }
+  if(fase === "buscar"){
+    // suavizado + resta del fondo con un margen para absorber el temblor del WiFi
+    for(let ch=0; ch<NCH; ch++){
+      acc[ch] = acc[ch]*0.5 + cur[ch];
+      disp[ch] = Math.max(0, acc[ch] - baseline[ch]*1.4 - 1.0);
+    }
+    pintarDiferencia(true);
+  }
+}
+
+// Dibuja `disp`. Si esDiff, ademas identifica los canales del mando.
+function pintarDiferencia(esDiff){
+  let max = 1;
+  for(let ch=0; ch<NCH; ch++) if(disp[ch]>max) max=disp[ch];
+  const UMBRAL = esDiff ? Math.max(2, max*0.35) : 0.5;
+  const activos = [];
+  for(let ch=0; ch<NCH; ch++){
+    const h = Math.round((disp[ch]/max)*104) + 2;
+    barras[ch].style.height = h+"px";
+    const on = disp[ch] >= UMBRAL;
+    if(esDiff && on) activos.push(ch);
+    barras[ch].className = "barCh" + (!disp[ch] ? "" : esDiff ? (on?" hot":" act") : " act");
+  }
+  if(!esDiff) return;
+
+  // Canales del mando = los que sobresalen del fondo, ordenados por fuerza.
+  activos.sort((a,b)=>disp[b]-disp[a]);
+  const top = activos.slice(0,4).sort((a,b)=>a-b);
+  $("topCanales").textContent = top.length ? top.join(", ") : "—";
+  $("btnUsarChan").disabled = top.length < 1;
+  window._topCanales = top;
+
+  if(top.length){
+    $("step2").classList.add("done");
+    setCapEstado("✅ ¡Señal del mando detectada! CH "+top.join(", "), "hit");
+  } else {
+    setCapEstado("Buscando el mando… no aparece nada nuevo (acércalo)", "listen");
+  }
+}
+
+let firmas = {};   // firma (5 bytes) -> {veces, ch, bytes}
+function procesarRaw(v){
+  // v = "ch:AA BB CC ...". Mostramos crudo y agrupamos por firma (bytes repetidos).
+  const [ch, hex] = v.split(":");
+  const bytes = (hex||"").trim().split(/\s+/);
+  const rl = $("rawLog");
+  rl.textContent += "CH "+String(ch).padStart(3)+" : "+(hex||"").trim()+"\n";
+  rl.scrollTop = rl.scrollHeight;
+  if(rl.textContent.length > 8000) rl.textContent = rl.textContent.slice(-6000);
+
+  // Firma = 5 bytes candidatos a direccion (saltando el 1er byte de ruido tipico).
+  if(bytes.length >= 6){
+    const firma = bytes.slice(1,6).join(" ").toUpperCase();
+    if(!firmas[firma]) firmas[firma] = {veces:0, ch};
+    firmas[firma].veces++; firmas[firma].ch = ch;
+    renderFuentesSniff();
+  }
+  setCapEstado("📡 Capturando bytes…", "hit");
+}
+
+function renderFuentesSniff(){
+  // Solo firmas que se REPITEN (>=3) son candidatas fiables a un transmisor real.
+  const lista = Object.entries(firmas).filter(([f,d])=>d.veces>=3)
+                  .sort((a,b)=>b[1].veces-a[1].veces).slice(0,5);
+  const w = $("fuentesWrap"), cont = $("fuentes");
+  if(!lista.length){ w.style.display = "none"; return; }
+  w.style.display = "";
+  cont.innerHTML = "";
+  lista.forEach(([firma,d],i)=>{
+    const addrCsv = firma.replace(/ /g,",");
+    const el = document.createElement("div");
+    el.className = "fuente";
+    el.innerHTML =
+      `<span class="dot" style="background:${COLORES[i]}"></span>
+       <span class="info"><b>Dirección ${i+1}</b>: ${firma}
+         <span class="sub">(vista ${d.veces}× · último CH ${d.ch})</span></span>`;
+    const btn = document.createElement("button");
+    btn.textContent = "Clonar esta";
+    btn.onclick = ()=>{ $("addr").value = addrCsv; log("Dirección clonada: "+addrCsv,"ok"); };
+    el.appendChild(btn);
+    cont.appendChild(el);
+  });
+}
+
+// Identificar chip: barre 3 velocidades y da veredicto XN297 / no-nRF.
+function iniciarIdentify(){
+  capturando="ident"; fase=null;
+  $("specWrap").style.display="none"; $("sniffWrap").style.display="none";
+  $("fuentesWrap").style.display="none"; $("clonWrap").style.display="none";
+  $("identWrap").style.display=""; $("identLog").textContent=""; $("identVeredicto").style.display="none";
+  $("btnFondo").disabled=true; $("btnBuscar").disabled=true; $("btnSniff").disabled=true;
+  $("btnClonar").disabled=true; $("btnIdent").disabled=true; $("btnStop").disabled=false;
+  setCapEstado("Identificando chip… (~15 s)","listen");
+  enviar("IDENTIFY");
+}
+function procesarIdTry(v){
+  // v = "rate,valid,raw"
+  const [rate,valid,raw]=v.split(",");
+  $("identLog").textContent += `${rate.padEnd(9)}  válidos: ${valid}   recibidos: ${raw}\n`;
+}
+function mostrarVeredicto(v){
+  const f=$("identVeredicto"); f.style.display="";
+  let dot,txt;
+  if(v==="XN297"){ dot="var(--ok)";
+    txt=`<b>✅ Es XN297</b> — el nRF24 SÍ puede clonarlo.
+      <span class="sub">Usa «Clonar del mando» para sacar dirección y canales, o «Probar todos».</span>`;
+    setCapEstado("✅ Chip XN297 detectado","hit"); }
+  else if(v==="QUIZA_XN297"){ dot="var(--warn)";
+    txt=`<b>⚠️ Parece XN297 pero con otro formato</b> — recibe preámbulos pero el CRC no cuadra.
+      <span class="sub">Podría ser una variante con payload distinto. Prueba «Clonar del mando» y mira si hay líneas.</span>`;
+    setCapEstado("⚠️ Posible XN297 variante","listen"); }
+  else { dot="var(--err)";
+    txt=`<b>❌ No es de la familia nRF</b> — no se recibió ningún paquete en las 3 velocidades.
+      <span class="sub">Casi seguro es un A7105 (u otro): el nRF24 no puede con él. Necesitas un módulo A7105 o uno 4-en-1. (O tu nRF24 es un clon Si24R1 que no recibe.)</span>`;
+    setCapEstado("❌ No es familia nRF","err"); }
+  f.innerHTML=`<span class="dot" style="background:${dot}"></span><span class="info">${txt}</span>`;
+  $("btnStop").disabled=true;
+  if(writer){ $("btnFondo").disabled=false; $("btnSniff").disabled=false; $("btnClonar").disabled=false; $("btnIdent").disabled=false; $("btnIdent").disabled=false; }
+  capturando=null;
+}
+
+// Clonado XN297: captura paquetes reales del mando, los descifra y saca dir/canales.
+let clonPaquetes=0;
+function iniciarClonar(){
+  capturando="clon"; fase=null; clonPaquetes=0; capRaws=[]; capCanales=[];
+  $("crearPerfilInfo").textContent="";
+  $("specWrap").style.display="none"; $("sniffWrap").style.display="none"; $("fuentesWrap").style.display="none";
+  $("clonWrap").style.display=""; $("clonLog").textContent=""; $("clonFound").style.display="none";
+  $("btnFondo").disabled=true; $("btnBuscar").disabled=true; $("btnSniff").disabled=true;
+  $("btnClonar").disabled=true; $("btnStop").disabled=false;
+  setCapEstado("Capturando del mando… enciéndelo cerca","listen");
+  enviar("RATE="+$("clonRate").value); enviar("CAPTURE");
+}
+function procesarCap(v){
+  // v = "ch,valido,BYTES..." (bytes ya descifrados)
+  const c1=v.indexOf(","), c2=v.indexOf(",",c1+1);
+  const ch=v.slice(0,c1), ok=v.slice(c1+1,c2)==="1", bytes=v.slice(c2+1);
+  const l=$("clonLog");
+  l.innerHTML += `<span class="${ok?'ok':'no'}">CH ${String(ch).padStart(3)} ${ok?'OK ':'·  '} ${bytes}</span>\n`;
+  l.scrollTop=l.scrollHeight;
+  if(l.textContent.length>9000) l.innerHTML=l.innerHTML.slice(-7000);
+  clonPaquetes++;
+  if(ok) setCapEstado("📥 Capturando XN297 del mando ("+clonPaquetes+")","hit");
+}
+function mostrarClonEncontrado(){
+  const f=$("clonFound");
+  f.style.display="";
+  f.innerHTML = `<span class="dot" style="background:var(--ok)"></span>
+    <span class="info"><b>¡Mando clonado!</b> dirección y canales copiados arriba
+    <span class="sub">ADDR ${$("addr").value} · CH ${$("chan").value}</span></span>`;
+}
+
+// =================== XN297 en JS (para analizar capturas y crear perfiles) ===
+const XN_SCR=[0xE3,0xB1,0x4B,0xEA,0x85,0xBC,0xE5,0x66,0x0D,0xAE,0x8C,0x88,0x12,0x69,0xEE,0x1F,
+0xC7,0x62,0x97,0xD5,0x0B,0x79,0xCA,0xCC,0x1B,0x5D,0x19,0x10,0x24,0xD3,0xDC,0x3F,0x8E,0xC5,0x2F,0xAA,0x16,0xF3,0x95];
+const XN_XO=[0x0000,0x3448,0x9BA7,0x8BBB,0x85E1,0x3E8C,0x451E,0x18E6,0x6B24,0xE7AB,0x3828,0x814B,
+0xD461,0xF494,0x2503,0x691D,0xFE8B,0x9BA7,0x8B17,0x2920,0x8B5F,0x61B1,0xD391,0x7401,0x2138,0x129F,0xB3A0,0x2988,0x23CA,0xC0CB,0x0C6C,0xB329,0xA0A1,0x0A16,0xA9D0];
+function xnBR(b){let o=0;for(let i=0;i<8;i++){o=((o<<1)|(b&1))&0xFF;b>>=1;}return o;}
+function xnCrcOk(b,AL,PL){
+  if(AL+PL+2>b.length) return false;
+  const idx=AL-3+PL; if(idx<0||idx>=XN_XO.length) return false;
+  let crc=0xB5D2;
+  for(let i=0;i<AL+PL;i++){crc^=(b[i]<<8)&0xFFFF;for(let k=0;k<8;k++)crc=(crc&0x8000)?(((crc<<1)^0x1021)&0xFFFF):((crc<<1)&0xFFFF);}
+  crc^=XN_XO[idx];
+  return (crc>>8)===b[AL+PL] && (crc&0xFF)===b[AL+PL+1];
+}
+function xnDecode(b,AL,PL){
+  const addr=new Array(AL),logic=new Array(PL);
+  for(let i=0;i<AL;i++) addr[AL-1-i]=b[i]^XN_SCR[i];
+  for(let j=0;j<PL;j++) logic[j]=xnBR(b[AL+j]^XN_SCR[AL+j]);
+  return {addr,logic};
+}
+const hx2=n=>n.toString(16).toUpperCase().padStart(2,"0");
+
+// Analiza los paquetes crudos capturados y construye un perfil automaticamente.
+let capRaws=[], capCanales=[];
+function analizarCapturaCrearPerfil(){
+  if(capRaws.length<8){ $("crearPerfilInfo").textContent="Captura pocas tramas: escucha más (mando encendido)."; return; }
+  // 1) fuerza bruta de longitud (AL=5) por CRC
+  const AL=5; let best=null,bestN=0;
+  for(let PL=4;PL<=24;PL++){ let n=0; for(const b of capRaws) if(xnCrcOk(b,AL,PL)) n++; if(n>bestN){bestN=n;best=PL;} }
+  if(!best||bestN<5){ $("crearPerfilInfo").textContent="No hay bastantes tramas XN297 válidas para deducir el formato."; return; }
+  const PL=best;
+  // 2) descifra las válidas, agrupa por dirección (la más repetida = el mando)
+  const grupos={};
+  for(const b of capRaws){ if(!xnCrcOk(b,AL,PL)) continue;
+    const {addr,logic}=xnDecode(b,AL,PL); const k=addr.map(hx2).join(",");
+    (grupos[k]=grupos[k]||[]).push(logic); }
+  let addrKey=null,rows=null;
+  for(const k in grupos) if(!rows||grupos[k].length>rows.length){rows=grupos[k];addrKey=k;}
+  // 3) por byte: fijo (constante) o eje (varía) -> plantilla
+  const plantilla=[]; let ejes=0; const letras=["T","A","E","R"];
+  for(let j=0;j<PL;j++){
+    const vals=rows.map(r=>r[j]); const u=[...new Set(vals)];
+    if(u.length===1) plantilla.push(hx2(u[0]));
+    else { const L=letras[Math.min(ejes,3)]; ejes++;
+      const mn=Math.min(...vals),mx=Math.max(...vals);
+      // gas suele ir 0..255; ejes centrados ~0..64
+      plantilla.push(L+":"+(L==="T"?0:0)+":"+(L==="T"?255:64)); }
+  }
+  const canales=[...new Set(capCanales)].sort((a,b)=>a-b);
+  const perfil={nombre:"clon_"+addrKey.replace(/,/g,"").slice(0,6),bitrate:parseInt($("clonRate").value),
+    addr:addrKey,payloadLen:PL,canales,plantilla};
+  $("perfilJson").value=JSON.stringify(perfil,null,2);
+  addPerfilOpcion(perfil.nombre,perfil,true);
+  $("crearPerfilInfo").innerHTML=`<span style="color:var(--ok)">Perfil creado: dir ${addrKey}, ${PL} bytes, ${bestN} tramas. Revísalo abajo (Perfiles) y descárgalo.</span>`;
+}
+
+// =========================== GESTIÓN DE PERFILES =============================
+const PERFILES_BUILTIN=[{
+  nombre:"5Monster",bitrate:1000,addr:"4A,9A,D5,25,24",payloadLen:12,
+  canales:[73,74,75,76,77],
+  plantilla:["00","0E","7E","T:0:255","A:1:63","E:1:63","R:1:63","00","40","00","AA","5A"],
+  botones:["8:80","-","-","-","8:02","8:01","6:40"],
+  bind:{canal:5,addr:"D2,B5,99,B3,4A",payload:["4C","4B","3A","37","0E","00","00","14","AA","AA"],ratio:6,toggle:"7:8",gesto:0}
+},{
+  nombre:"Mando4",bitrate:1000,addr:"34,A4,AD,25,24",payloadLen:12,
+  canales:[73,74,75,76,77],
+  plantilla:["00","00","AD","T:0:255","A:1:63","E:1:63","R:1:63","00","40","00","AA","AA"],
+  botones:["8:80","-","-","-","8:02","8:01","6:40"],
+  bind:{canal:[12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27],addr:"D2,B5,99,B3,4A",payload:["4C","4B","3A","45","07","00","D2","00","AA","AA"],ratio:2,toggle:"-",gesto:0}
+}];
+let perfilesLista=[];   // {nombre, obj}
+function bindACompacto(b){
+  if(!b||b.canal==null||!b.payload) return "-";
+  const ch=Array.isArray(b.canal)?b.canal.join(","):b.canal;   // uno o varios canales
+  const tog=b.toggle||"-";
+  const gesto=(b.gesto!=null)?b.gesto:0;
+  return [ch,b.addr,(b.payload||[]).join(","),(b.ratio||6),tog,gesto].join("|");
+}
+function compactoABind(s){
+  if(!s||s==="-") return null;
+  const f=s.split("|"); if(f.length<3) return null;
+  const ch=f[0].split(",").map(Number);
+  return {canal:ch.length>1?ch:ch[0], addr:f[1], payload:f[2].split(","),
+    ratio:f[3]?parseInt(f[3]):6, toggle:f[4]||"-", gesto:f[5]?parseInt(f[5]):0};
+}
+function perfilACompacto(o){
+  const btn=(o.botones&&o.botones.length===7)?o.botones:["-","-","-","-","-","-","-"];
+  return "PROFILE="+[o.nombre,o.bitrate,o.addr,o.payloadLen,
+    (o.canales||[]).join(","), (o.plantilla||[]).join(","), btn.join(","),
+    bindACompacto(o.bind)].join(";");
+}
+function compactoAPerfil(line){
+  const v=line.replace(/^PROFILE=/,"").split(";");
+  if(v.length<6) return null;
+  const o={nombre:v[0],bitrate:parseInt(v[1]),addr:v[2],payloadLen:parseInt(v[3]),
+    canales:v[4].split(",").map(Number),plantilla:v[5].split(",")};
+  if(v.length>=7) o.botones=v[6].split(",");
+  if(v.length>=8){ const b=compactoABind(v[7]); if(b) o.bind=b; }
+  return o;
+}
+function rellenarSelectPerfiles(){
+  const s=$("perfilSel"); s.innerHTML="";
+  perfilesLista.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=p.nombre; s.appendChild(o); });
+}
+function addPerfilOpcion(nombre,obj,seleccionar){
+  const i=perfilesLista.findIndex(p=>p.nombre===nombre);
+  if(i>=0) perfilesLista[i]={nombre,obj}; else perfilesLista.push({nombre,obj});
+  rellenarSelectPerfiles();
+  if(seleccionar){ $("perfilSel").value=perfilesLista.findIndex(p=>p.nombre===nombre); }
+}
+function cargarPerfilEnEditor(){
+  const i=parseInt($("perfilSel").value); if(isNaN(i)||!perfilesLista[i]) return;
+  $("perfilJson").value=JSON.stringify(perfilesLista[i].obj,null,2);
+}
+function perfilDelEditor(){
+  try{ return JSON.parse($("perfilJson").value); }
+  catch(e){ log("JSON de perfil inválido: "+e,"err"); return null; }
+}
+// init lista con los built-in
+PERFILES_BUILTIN.forEach(p=>perfilesLista.push({nombre:p.nombre,obj:p}));
+rellenarSelectPerfiles(); cargarPerfilEnEditor();
+
+// Sniffer de direccion (para elegir entre varios mandos por su dirección).
+function iniciarSniffer(){
+  capturando = "sniff"; fase = null; firmas = {};
+  $("fuentes").innerHTML = ""; $("fuentesWrap").style.display = "none";
+  $("specWrap").style.display = "none"; $("sniffWrap").style.display = "";
+  $("rawLog").textContent = "";
+  $("btnFondo").disabled = true; $("btnBuscar").disabled = true;
+  $("btnSniff").disabled = true; $("btnStop").disabled = false;
+  setCapEstado("Escuchando direcciones…","listen");
+  enviar("RATE="+$("sniffRate").value); enviar("SNIFF");
+}
+function detenerCaptura(){
+  capturando = null; fase = null;
+  $("btnStop").disabled = true;
+  if(writer){ $("btnFondo").disabled=false; $("btnSniff").disabled=false; $("btnClonar").disabled=false; $("btnIdent").disabled=false;
+              $("btnBuscar").disabled = !baselineListo; }
+  setCapEstado("Detenido");
+  enviar("STOP");
+}
+
+// ------------- Web Serial -------------
+async function conectar(){
+  if(!("serial" in navigator)){ log("Tu navegador no soporta Web Serial. Usa Chrome o Edge.","err"); return; }
+  try{
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate:115200 });
+    writer = port.writable.getWriter();
+    leerLoop();
+    $("estado").textContent="Conectado"; $("estado").classList.add("on");
+    $("btnConn").disabled=true; $("btnDisc").disabled=false;
+    ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnSniff","btnClonar","btnIdent","btnProto","btnCiclo","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=false);
+    setTimeout(()=>enviar("MODO?"),250);
+    log("Conectado.","ok");
+    setTimeout(()=>enviar("?"),400);
+  }catch(e){ log("No se pudo abrir el puerto: "+e,"err"); }
+}
+async function desconectar(){
+  try{ if(reader){await reader.cancel();} if(writer){writer.releaseLock();} if(port){await port.close();} }catch(e){}
+  port=null;writer=null;reader=null;
+  $("estado").textContent="Desconectado"; $("estado").classList.remove("on");
+  $("btnConn").disabled=false; $("btnDisc").disabled=true;
+  ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnBuscar","btnSniff","btnClonar","btnIdent","btnStop","btnProto","btnCiclo","btnCicloStop","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=true);
+  if(window.tvHide) tvHide();
+  if(window.tabsForMode){ tabsForMode(''); showTab('ayuda'); }
+  capturando=null; fase=null; baselineListo=false; cicloActivo=false; setCapEstado("Detenido");
+  log("Desconectado.","warn");
+}
+async function leerLoop(){
+  const dec=new TextDecoder();
+  reader = port.readable.getReader();
+  try{
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      lineBuf += dec.decode(value);
+      let idx;
+      while((idx=lineBuf.indexOf("\n"))>=0){
+        const linea=lineBuf.slice(0,idx).replace(/\r/g,"").trim();
+        lineBuf=lineBuf.slice(idx+1);
+        if(linea) manejarLinea(linea);
+      }
+    }
+  }catch(e){ log("Lectura detenida: "+e,"warn"); }
+  finally{ try{reader.releaseLock();}catch(e){} }
+}
+async function enviar(cmd){
+  if(!writer){ log("No conectado.","err"); return; }
+  await writer.write(new TextEncoder().encode(cmd+"\n"));
+  log("→ "+cmd,"dim");
+}
+
+// ------------- interpretar respuestas del ESP32 -------------
+function manejarLinea(l){
+  if(l.startsWith("TEL,")){ tvParse(l); return; }        // telemetria del dron DIY (via mando)
+  if(l.startsWith("PARAMS,")){ tvParams(l); return; }     // ajustes de vuelo del dron
+  const eq=l.indexOf("=");
+  const k = eq<0 ? "" : l.slice(0,eq);
+  // Las lineas de captura son muy frecuentes: no las volcamos en la consola.
+  if(k==="SCAN"){ procesarScan(l.slice(5).trim()); return; }
+  if(k==="RAW"){  procesarRaw(l.slice(4).trim());  return; }
+  if(k==="CAPRAW"){ const p=l.slice(7).split(":"); if(p.length>=2){ const ch=parseInt(p[0]);
+      const bytes=p[1].trim().split(/\s+/).map(x=>parseInt(x,16));
+      if(bytes.length>=19){ capRaws.push(bytes); capCanales.push(ch); } } return; }
+  if(k==="CAP"){  procesarCap(l.slice(4).trim());  return; }
+  if(k==="PROFILE"){ const o=compactoAPerfil(l.trim()); if(o){ $("perfilJson").value=JSON.stringify(o,null,2);
+      addPerfilOpcion(o.nombre+" (del mando)",o,true); log("Perfil leído del mando: "+o.nombre,"ok"); } return; }
+  if(k==="PROFILE_ON"){ log("Perfil activo: "+l.slice(11),"ok"); return; }
+  if(k==="MODO"){ const m=l.slice(5).trim();
+    $("modoActual").textContent = m==="BLE" ? "🎮 Simulador (BLE)" : (m==="ESPNOW" ? "🚁 Dron DIY (ESP-NOW)" : "🛩️ Drones (nRF24)");
+    $("modoActual").className = "pill on";
+    if(m==="ESPNOW"){ setTimeout(()=>enviar("params"),500); }
+    tabsForMode(m);
+    return; }
+  if(k==="GOTADDR"){ $("addr").value=l.slice(8).trim().toUpperCase(); mostrarClonEncontrado(); return; }
+  if(k==="GOTCHAN"){ $("chan").value=l.slice(8).trim(); mostrarClonEncontrado(); return; }
+  if(k==="IDTRY"){ procesarIdTry(l.slice(6).trim()); return; }
+  if(k==="VERDICT"){ mostrarVeredicto(l.slice(8).trim()); return; }
+  log("  "+l);
+  if(l==="IDSTART") return;
+  if(l==="CYCLE_START"){ setProtoEstado("Probando protocolos…","listen"); return; }
+  if(l==="SCANNING"||l==="SNIFFING"||l==="STOPPED") return;
+  if(eq<0) return;
+  const v=l.slice(eq+1).trim();
+  if(k==="ADDR") $("addr").value=v.toUpperCase();
+  else if(k==="CHAN") $("chan").value=v;
+  else if(k==="PROTO"){ const p=v.split(/\s+/); const n=parseInt(p[0]);
+      if(!isNaN(n)){ $("proto").value=n;
+        setProtoEstado((cicloActivo?"Probando: ":"Protocolo: ")+(p[1]||n), cicloActivo?"listen":"on"); } }
+  else if(k==="EXPO") $("expo").value=v;
+  else if(k==="DZ")   $("dz").value=v;
+  else if(k==="INV"){ const p=v.split(","); ["invLX","invLY","invRX","invRY"].forEach((id,i)=>$(id).checked=p[i]==="1"); }
+  else if(k==="CAL"){ const p=v.split(",").map(Number); const i=p[0];
+      if(i>=0&&i<4){ cal[i]={min:p[1],cen:p[2],max:p[3]}; pintarCal(); } }
+}
+
+// ------------- enviar cambios -------------
+async function enviarCambios(){
+  const addr=$("addr").value.trim(); if(addr) await enviar("ADDR="+addr);
+  const chan=$("chan").value.trim(); if(chan) await enviar("CHAN="+chan);
+  await enviar("EXPO="+($("expo").value||"1.4"));
+  await enviar("DZ="+($("dz").value||"0"));
+  const inv=["invLX","invLY","invRX","invRY"].map(id=>$(id).checked?1:0).join(",");
+  await enviar("INV="+inv);
+  for(let i=0;i<4;i++){
+    const mn=$("cmin"+i).value, cn=$("ccen"+i).value, mx=$("cmax"+i).value;
+    await enviar(`CAL=${i},${mn},${cn},${mx}`);
+  }
+  log("Cambios enviados. Pulsa Guardar para persistir.","ok");
+}
+
+// ------------- sub-protocolo / probar todos -------------
+let cicloActivo=false;
+function setProtoEstado(txt,cls){ const p=$("protoEstado"); p.className="pill"+(cls?(" "+cls):""); p.textContent=txt; }
+$("btnProto").onclick=()=>enviar("PROTO="+$("proto").value);
+$("btnCiclo").onclick=()=>{
+  if(!confirm("Pon el dron ENCENDIDO a ~30 cm.\nEl mando irá probando protocolos cada ~6 s.\n¿Empezar?")) return;
+  cicloActivo=true; $("btnCicloStop").disabled=false;
+  $("btnCiclo").disabled=true; $("btnProto").disabled=true;
+  enviar("PROTOCYCLE");
+};
+$("btnCicloStop").onclick=()=>{
+  cicloActivo=false; enviar("STOP");
+  $("btnCicloStop").disabled=true; $("btnCiclo").disabled=false; $("btnProto").disabled=false;
+  setProtoEstado("Detenido en: "+$("proto").selectedOptions[0].text.split(" ")[0]+" — pulsa Guardar","on");
+};
+
+$("btnConn").onclick=conectar;
+$("btnDisc").onclick=desconectar;
+$("btnFondo").onclick=medirFondo;
+$("btnBuscar").onclick=buscarMando;
+$("btnSniff").onclick=iniciarSniffer;
+$("btnClonar").onclick=iniciarClonar;
+$("btnIdent").onclick=iniciarIdentify;
+$("btnStop").onclick=detenerCaptura;
+$("btnCrearPerfil").onclick=analizarCapturaCrearPerfil;
+
+// --- Perfiles ---
+$("perfilSel").onchange=cargarPerfilEnEditor;
+$("btnPerfCargar").onclick=()=>{ const o=perfilDelEditor(); if(o) enviar(perfilACompacto(o)); };
+$("btnPerfLeer").onclick=()=>enviar("PROFDUMP");
+$("btnPerfSave").onclick=()=>enviar("SAVE");
+$("btnPerfDescargar").onclick=()=>{
+  const o=perfilDelEditor(); if(!o) return;
+  const blob=new Blob([JSON.stringify(o,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=(o.nombre||"perfil").replace(/[^\w\-]+/g,"_")+".json"; a.click();
+  log("Descargado "+a.download,"ok");
+};
+$("perfilFile").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const o=JSON.parse(r.result); $("perfilJson").value=JSON.stringify(o,null,2);
+      addPerfilOpcion(o.nombre||f.name,o,true); log("Perfil subido: "+(o.nombre||f.name),"ok"); }
+    catch(err){ log("Archivo de perfil inválido: "+err,"err"); } };
+  r.readAsText(f); e.target.value="";
+};
+$("btnUsarChan").onclick=()=>{
+  const t = window._topCanales||[];
+  if(t.length){ $("chan").value = t.slice(0,4).join(","); log("Canales copiados: "+$("chan").value,"ok"); }
+};
+$("btnLeer").onclick=()=>enviar("?");
+$("btnEnviar").onclick=enviarCambios;
+$("btnSave").onclick=()=>enviar("SAVE");
+$("btnBind").onclick=()=>{ if(confirm("Enciende el dron a ~30 cm. ¿Lanzar BIND?")) enviar("BIND"); };
+$("btnModoBLE").onclick=()=>{ if(confirm("Cambiar a modo SIMULADOR (gamepad BLE)?\nEl ESP32 se reinicia y tendrás que reconectar por USB. Empareja 'Mando Dron DIY' en el PC.")){ enviar("MODO=BLE"); setTimeout(desconectar,600); } };
+$("btnModoNRF").onclick=()=>{ if(confirm("Cambiar a modo DRONES (nRF24)?\nEl ESP32 se reinicia y tendrás que reconectar por USB.")){ enviar("MODO=NRF"); setTimeout(desconectar,600); } };
+$("btnModoESPNOW").onclick=()=>{ if(confirm("Cambiar a modo DRON DIY (ESP-NOW)?\nEl ESP32 se reinicia; reconecta por USB. Verás la telemetría del dron DIY.")){ enviar("MODO=ESPNOW"); setTimeout(desconectar,600); } };
+navigator.serial && navigator.serial.addEventListener("disconnect",()=>desconectar());
+
+// ---- Pestañas (disponibles según el modo del mando) ----
+function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.dataset.tab; if(g) c.style.display=(g===t||g==='always')?'block':'none'; }); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t)); window._tab=t; if(window.tvOnTab) tvOnTab(t); }
+function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab(m==='ESPNOW'?'vuelo':(m==='NRF'?'clonar':'general')); }
+document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+showTab('ayuda');
+</script>
+
+<script>
+/* ===== Telemetria y vuelo del dron DIY (se muestra solo si llegan lineas TEL,) ===== */
+(function(){
+  const TVP=[
+    {cmd:"kpr",el:"tvKpr",nm:"Nivelado · Balanceo",step:0.1,min:0,max:10},
+    {cmd:"kpp",el:"tvKpp",nm:"Nivelado · Cabeceo",step:0.1,min:0,max:10},
+    {cmd:"kpy",el:"tvKpy",nm:"Giro · Rumbo",step:0.1,min:0,max:10},
+    {cmd:"kdr",el:"tvKdr",nm:"Amortiguación · Balanceo",step:0.01,min:0,max:1},
+    {cmd:"kdp",el:"tvKdp",nm:"Amortiguación · Cabeceo",step:0.01,min:0,max:1},
+    {cmd:"ang",el:"tvAng",nm:"Inclinación máxima (grados)",step:1,min:5,max:60},
+    {cmd:"idle",el:"tvIdle",nm:"Ralentí al armar",step:10,min:0,max:1023},
+    {cmd:"tope",el:"tvTope",nm:"Potencia máxima",step:20,min:0,max:1023},
+  ];
+  const box=$("tvCfgBox");
+  if(box) box.innerHTML=TVP.map(p=>`<div class="tv-cfg"><div>${p.nm}<div style="font-size:11px;color:var(--dim)">rango ${p.min}–${p.max}</div></div><input type="number" id="${p.el}" step="${p.step}" min="${p.min}" max="${p.max}" disabled><button class="ghost tvap" data-cmd="${p.cmd}" data-el="${p.el}" disabled>Aplicar</button></div>`).join("");
+  document.querySelectorAll('.tvap').forEach(b=>b.onclick=()=>{ const v=$(b.dataset.el).value.trim(); if(v!=="") enviar(b.dataset.cmd+" "+v); });
+  const H={tvFly:"fly",tvArmB:"arm",tvDisarm:"disarm",tvCal:"cal",tvSave:"save"};
+  for(const id in H){ const e=$(id); if(e) e.onclick=()=>enviar(H[id]); }
+  const rb=$("tvReset"); if(rb) rb.onclick=()=>{ if(confirm("¿Restaurar valores por defecto?")){ enviar("reset"); setTimeout(()=>enviar("params"),350);} };
+  let tvGpsHab=true;
+  const gb=$("tvGps"); if(gb) gb.onclick=()=>enviar("usegps "+(tvGpsHab?0:1));
+
+  let shown=false, cfgLocked=false, askedParams=false;
+  function tvEnable(on){ ['tvFly','tvArmB','tvDisarm','tvCal','tvSave','tvReset','tvGps'].forEach(id=>{const e=$(id);if(e)e.disabled=!on;}); document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=!on); }
+  function tvShow(){ if(shown)return; shown=true; tvEnable(true); if(!askedParams){askedParams=true; setTimeout(()=>enviar("params"),300);} }
+  window.tvHide=function(){ shown=false; askedParams=false; };
+  function drawRadar(dist, brg, fix, hSet){
+    const cv=$("tvRadar"); if(!cv)return; const ctx=cv.getContext("2d"); const W=cv.width,H=cv.height,cx=W/2,cy=H/2;
+    ctx.clearRect(0,0,W,H);
+    const maxR=Math.min(cx,cy)-26;
+    const nice=[20,50,100,200,400,800,1600]; const esc=nice.find(n=>n>=Math.max(dist||0,15))||1600;
+    ctx.strokeStyle="#2e3a54"; ctx.fillStyle="#9aa7c2"; ctx.font="11px system-ui"; ctx.textAlign="center";
+    for(let i=1;i<=3;i++){ const r=maxR*i/3; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.stroke(); ctx.fillText(Math.round(esc*i/3)+" m",cx,cy-r+13); }
+    ctx.beginPath(); ctx.moveTo(cx-maxR,cy); ctx.lineTo(cx+maxR,cy); ctx.moveTo(cx,cy-maxR); ctx.lineTo(cx,cy+maxR); ctx.stroke();
+    ctx.fillStyle="#4ea1ff"; ctx.fillText("N",cx,cy-maxR-6); ctx.fillText("S",cx,cy+maxR+16); ctx.fillText("E",cx+maxR+10,cy+4); ctx.fillText("O",cx-maxR-10,cy+4);
+    ctx.fillStyle="#3ad29f"; ctx.beginPath(); ctx.arc(cx,cy,5,0,7); ctx.fill();
+    if(fix<0){ ctx.fillStyle="#ffb454"; ctx.fillText("GPS desactivado",cx,cy+maxR+34); return; }
+    if(!hSet){ ctx.fillStyle="#9aa7c2"; ctx.fillText(fix>0?"esperando armar (fija casa)":"sin fix GPS",cx,cy+maxR+34); return; }
+    const bh=(brg+180)%360, ang=bh*Math.PI/180, rr=Math.min(maxR, maxR*(dist/esc));
+    const dx=cx+rr*Math.sin(ang), dy=cy-rr*Math.cos(ang);
+    ctx.strokeStyle="#4ea1ff"; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(dx,dy); ctx.stroke();
+    ctx.fillStyle="#4ea1ff"; ctx.beginPath(); ctx.arc(dx,dy,7,0,7); ctx.fill();
+    ctx.fillStyle="#e6ebf5"; ctx.fillText(Math.round(dist)+" m · "+Math.round(brg)+"° a casa",cx,cy+maxR+34);
+  }
+  let tmap=null, dMk=null, hMk=null, hPlaced=false, mapOk=false, verRadar=false;
+  function initMap(){ if(tmap||typeof L==='undefined')return null; try{
+      const E='https://server.arcgisonline.com/ArcGIS/rest/services/';
+      const sat =L.tileLayer(E+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+      const vias=L.tileLayer(E+'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+      const etiq=L.tileLayer(E+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+      const hibrido=L.layerGroup([sat,vias,etiq]);
+      const calles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
+      tmap=L.map('flyMap',{attributionControl:false,zoomControl:false,layers:[hibrido]}).setView([20,0],3);
+      L.control.zoom({position:'bottomright'}).addTo(tmap);
+      L.control.layers({'Híbrido (satélite+calles)':hibrido,'Satélite':sat,'Callejero (OSM)':calles},null,{position:'bottomright'}).addTo(tmap);
+      mapOk=true;
+      if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{ try{ const ll=[p.coords.latitude,p.coords.longitude]; if(!dMk) tmap.setView(ll,16); L.circleMarker(ll,{radius:6,color:'#ffb454',fillColor:'#ffb454',fillOpacity:.7}).addTo(tmap).bindTooltip('tú'); }catch(e){} }, ()=>{}, {maximumAge:60000,timeout:6000});
+      return tmap; }catch(e){ return null; } }
+  function mostrarMapa(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display=''; if(r)r.style.display='none'; const b=$("tvMapToggle"); if(b)b.textContent="🧭 radar"; if(tmap)setTimeout(()=>{try{tmap.invalidateSize()}catch(e){}},150); }
+  function mostrarRadar(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display='none'; if(r)r.style.display='block'; const b=$("tvMapToggle"); if(b)b.textContent="🗺️ mapa"; }
+  window.tvOnTab=function(t){ if(t!=='vuelo')return; setTimeout(()=>{ if(verRadar){ mostrarRadar(); return; } const ok=initMap(); if(ok) mostrarMapa(); else { verRadar=true; mostrarRadar(); } },150); };
+  { const e=$("tvExit"); if(e) e.onclick=()=>showTab('dron'); }
+  { const b=$("tvMapToggle"); if(b) b.onclick=()=>{ verRadar=!verRadar; if(verRadar) mostrarRadar(); else { if(!tmap) initMap(); mostrarMapa(); } }; }
+  function lock(l){ if(l===cfgLocked)return; cfgLocked=l; document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=l); ['tvSave','tvReset','tvCal'].forEach(id=>{const e=$(id);if(e)e.disabled=l;}); const s=$("tvCfgState"); if(s){ s.textContent=l?"🔒 en vuelo — desarma para configurar":"editable"; s.className="pill"+(l?"":" on"); } }
+
+  window.tvParams=function(line){ const p=line.split(","); if(p.length<9)return; tvShow();
+    const m={tvKpr:1,tvKpp:2,tvKpy:3,tvKdr:4,tvKdp:5,tvAng:6,tvIdle:7,tvTope:8};
+    for(const id in m){ const e=$(id); if(e&&!cfgLocked) e.value=p[m[id]]; }
+    if(p[9]!==undefined){ tvGpsHab=(+p[9])===1; const g=$("tvGps"); if(g){ g.textContent="📡 GPS: "+(tvGpsHab?"ON":"OFF"); g.className="ghost"+(tvGpsHab?"":""); } } };
+
+  window.tvParse=function(line){ const p=line.split(","); if(p.length<18)return; tvShow();
+    const roll=+p[1],pitch=+p[2],yaw=+p[3];
+    const mm=[+p[10],+p[11],+p[12],+p[13]];
+    const link=+p[14],rssi=+p[15],sats=+p[16],fix=+p[17];
+    const lat=+p[18]||0,lon=+p[19]||0, flyS=+p[20]||0, armS=+p[21]||0;
+    const hSet=+p[22]||0,dist=+p[23]||0,brg=+p[24]||0;
+    const D=$("tvDrone"); if(D) D.style.transform=`rotateY(${roll}deg) rotateX(${-pitch}deg) rotateZ(${yaw}deg)`;
+    const Hz=$("tvHz"); if(Hz) Hz.style.transform=`rotate(${-roll}deg) translateY(${pitch*2}px)`;
+    $("tvRoll").textContent=roll.toFixed(1)+"°"; $("tvPitch").textContent=pitch.toFixed(1)+"°"; $("tvYaw").textContent=yaw.toFixed(1)+"°";
+    $("tvRssi").textContent=link?rssi+" dBm":"—";
+    for(let i=0;i<4;i++){ $("tvB"+i).style.width=Math.min(100,mm[i]/1023*100)+"%"; $("tvT"+i).textContent=mm[i]; }
+    $("tvLink").textContent=link?"enlace OK":"sin enlace"; $("tvLink").className="pill"+(link?" on":"");
+    $("tvArm").textContent=armS?"⚠ ARMADO":"desarmado"; $("tvArm").className="pill"+(armS?" listen":"");
+    const fb=$("tvFly"); if(fb) fb.classList.toggle('warn',!!flyS);
+    $("tvFix").textContent=fix<0?"desactivado":(fix>0?("fix "+fix):"sin fix"); $("tvSats").textContent=sats;
+    $("tvDist").textContent=hSet?dist+" m":"—"; $("tvBrg").textContent=hSet?brg+"°":"—";
+    lock(armS===1);
+    if(mapOk && tmap && fix>0){ const ll=[lat,lon];
+      if(!dMk){ dMk=L.circleMarker(ll,{radius:8,color:'#4ea1ff',fillColor:'#4ea1ff',fillOpacity:.9}).addTo(tmap).bindTooltip('dron'); tmap.setView(ll,18); } else dMk.setLatLng(ll);
+      if(hSet&&!hPlaced){ hMk=L.circleMarker(ll,{radius:7,color:'#3ad29f',fillColor:'#3ad29f',fillOpacity:.8}).addTo(tmap).bindTooltip('casa'); hPlaced=true; } }
+    if(verRadar||!mapOk) drawRadar(dist, brg, fix, hSet);
+  };
+})();
+</script>
+</body>
+</html>
