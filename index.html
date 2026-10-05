@@ -1038,6 +1038,13 @@ function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.d
 function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab(m==='ESPNOW'?'vuelo':(m==='NRF'?'clonar':'general')); }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 showTab('ayuda');
+
+// Diagnostico de entorno (para saber por que no conecta)
+(function(){ const sc=window.isSecureContext, ws=("serial"in navigator), wu=("usb"in navigator);
+  log("Entorno → HTTPS/seguro: "+(sc?"SÍ":"NO")+"  ·  Web Serial: "+(ws?"sí":"no")+"  ·  WebUSB: "+(wu?"sí":"no"), sc?"dim":"err");
+  if(!sc) log("⚠ Abre la página por HTTPS (GitHub Pages) o localhost; con archivo local (file://) el navegador no deja conectar.","err");
+  else if(!ws && !wu) log("⚠ Tu navegador no tiene Web Serial ni WebUSB. Usa Chrome/Edge actualizado.","err");
+})();
 </script>
 
 <script>
