@@ -851,7 +851,7 @@ class CP210x{
   }
   ctl(req,val){ return this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:req,value:val,index:this.ifn}); }
   async write(s){ await this.dev.transferOut(this.epOut, new TextEncoder().encode(s)); }
-  async read(){ try{ const r=await this.dev.transferIn(this.epIn,64); return (r&&r.data)? new Uint8Array(r.data.buffer):null; }catch(e){ return null; } }
+  async read(){ const r=await this.dev.transferIn(this.epIn,64); if(r.status&&r.status!=='ok') throw new Error("USB "+r.status); return (r.data&&r.data.byteLength)? new Uint8Array(r.data.buffer):new Uint8Array(0); }
   async close(){ try{await this.dev.releaseInterface(this.ifn);}catch(e){} try{await this.dev.close();}catch(e){} }
 }
 async function conectar(){
@@ -884,11 +884,15 @@ async function leerLoopUSB(){
       if(chunk && chunk.length){ lineBuf += dec.decode(chunk);
         let idx; while((idx=lineBuf.indexOf("\n"))>=0){ const linea=lineBuf.slice(0,idx).replace(/\r/g,"").trim(); lineBuf=lineBuf.slice(idx+1); if(linea) manejarLinea(linea); } }
     }
-  }catch(e){ log("Lectura USB detenida: "+e,"warn"); }
+  }catch(e){ if(usb){ log("USB desconectado.","warn"); desconectar(); } }
 }
 async function desconectar(){
-  try{ if(reader){await reader.cancel();} if(writer){writer.releaseLock();} if(port){await port.close();} if(usb){await usb.close();} }catch(e){}
-  port=null;writer=null;reader=null;usb=null;
+  const p=port,w=writer,r=reader,u=usb;
+  port=null;writer=null;reader=null;usb=null;        // marcar desconectado primero (corta los bucles)
+  try{ if(r) await r.cancel(); }catch(e){}
+  try{ if(w) w.releaseLock(); }catch(e){}
+  try{ if(p) await p.close(); }catch(e){}
+  try{ if(u) await u.close(); }catch(e){}
   $("estado").textContent="Desconectado"; $("estado").classList.remove("on");
   $("btnConn").disabled=false; $("btnDisc").disabled=true;
   ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnBuscar","btnSniff","btnClonar","btnIdent","btnStop","btnProto","btnCiclo","btnCicloStop","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=true);
@@ -912,14 +916,16 @@ async function leerLoop(){
         if(linea) manejarLinea(linea);
       }
     }
-  }catch(e){ log("Lectura detenida: "+e,"warn"); }
+  }catch(e){ log("Lectura detenida: "+e,"warn"); if(port) desconectar(); }
   finally{ try{reader.releaseLock();}catch(e){} }
 }
 async function enviar(cmd){
-  if(writer){ await writer.write(new TextEncoder().encode(cmd+"\n")); }
-  else if(usb){ await usb.write(cmd+"\n"); }
-  else { log("No conectado.","err"); return; }
-  log("→ "+cmd,"dim");
+  try{
+    if(writer){ await writer.write(new TextEncoder().encode(cmd+"\n")); }
+    else if(usb){ await usb.write(cmd+"\n"); }
+    else { log("No conectado.","err"); return; }
+    log("→ "+cmd,"dim");
+  }catch(e){ log("Error al enviar (¿desconectado?): "+(e.message||e),"err"); if(port||usb) desconectar(); }
 }
 
 // ------------- interpretar respuestas del ESP32 -------------
@@ -1039,6 +1045,7 @@ $("btnModoBLE").onclick=()=>{ if(confirm("Cambiar a modo SIMULADOR (gamepad BLE)
 $("btnModoNRF").onclick=()=>{ if(confirm("Cambiar a modo DRONES (nRF24)?\nEl ESP32 se reinicia y tendrás que reconectar por USB.")){ enviar("MODO=NRF"); setTimeout(desconectar,600); } };
 $("btnModoESPNOW").onclick=()=>{ if(confirm("Cambiar a modo DRON DIY (ESP-NOW)?\nEl ESP32 se reinicia; reconecta por USB. Verás la telemetría del dron DIY.")){ enviar("MODO=ESPNOW"); setTimeout(desconectar,600); } };
 navigator.serial && navigator.serial.addEventListener("disconnect",()=>desconectar());
+navigator.usb && navigator.usb.addEventListener("disconnect",()=>{ if(usb) desconectar(); });
 
 // ---- Pestañas (disponibles según el modo del mando) ----
 function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.dataset.tab; if(g) c.style.display=(g===t||g==='always')?'block':'none'; }); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t)); window._tab=t; if(window.tvOnTab) tvOnTab(t); }
