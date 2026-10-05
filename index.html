@@ -852,12 +852,15 @@ class CP210x{
 }
 async function conectar(){
   try{
-    if("serial" in navigator){                       // PC: Web Serial
+    // En movil Web Serial existe pero NO ve el CP210x -> usar WebUSB. En PC, Web Serial.
+    const movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    const usarUSB = ("usb" in navigator) && (movil || !("serial" in navigator));
+    if(("serial" in navigator) && !usarUSB){         // PC: Web Serial
       port = await navigator.serial.requestPort();
       await port.open({ baudRate:115200 });
       writer = port.writable.getWriter();
       leerLoop();
-    } else if("usb" in navigator){                   // Android: WebUSB + driver CP210x
+    } else if("usb" in navigator){                   // Movil: WebUSB + driver CP210x
       usb = new CP210x(); await usb.open(); leerLoopUSB();
       log("Conectado por WebUSB (CP210x).","ok");
     } else { log("Tu navegador no soporta Web Serial ni WebUSB. Usa Chrome.","err"); return; }
