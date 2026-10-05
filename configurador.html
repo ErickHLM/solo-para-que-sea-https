@@ -828,13 +828,39 @@ function detenerCaptura(){
 }
 
 // ------------- Web Serial -------------
+// Driver CP210x por WebUSB (para Android, donde Web Serial no reconoce el CP210x)
+let usb=null;
+class CP210x{
+  async open(){
+    this.dev=await navigator.usb.requestDevice({filters:[{vendorId:0x10C4}]});
+    await this.dev.open();
+    if(!this.dev.configuration) await this.dev.selectConfiguration(1);
+    const itf=this.dev.configuration.interfaces[0];
+    this.ifn=itf.interfaceNumber;
+    await this.dev.claimInterface(this.ifn);
+    const alt=itf.alternate||itf.alternates[0];
+    this.epIn=null; this.epOut=null;
+    for(const ep of alt.endpoints){ if(ep.type==='bulk'){ if(ep.direction==='in')this.epIn=ep.endpointNumber; else this.epOut=ep.endpointNumber; } }
+    await this.ctl(0x00,0x0001);   // IFC_ENABLE (habilita UART)
+    await this.ctl(0x03,0x0800);   // SET_LINE_CTL 8N1
+    await this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:0x1E,value:0,index:this.ifn}, new Uint8Array(new Uint32Array([115200]).buffer)); // SET_BAUDRATE 115200
+  }
+  ctl(req,val){ return this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:req,value:val,index:this.ifn}); }
+  async write(s){ await this.dev.transferOut(this.epOut, new TextEncoder().encode(s)); }
+  async read(){ try{ const r=await this.dev.transferIn(this.epIn,64); return (r&&r.data)? new Uint8Array(r.data.buffer):null; }catch(e){ return null; } }
+  async close(){ try{await this.dev.releaseInterface(this.ifn);}catch(e){} try{await this.dev.close();}catch(e){} }
+}
 async function conectar(){
-  if(!("serial" in navigator)){ log("Tu navegador no soporta Web Serial. Usa Chrome o Edge.","err"); return; }
   try{
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate:115200 });
-    writer = port.writable.getWriter();
-    leerLoop();
+    if("serial" in navigator){                       // PC: Web Serial
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate:115200 });
+      writer = port.writable.getWriter();
+      leerLoop();
+    } else if("usb" in navigator){                   // Android: WebUSB + driver CP210x
+      usb = new CP210x(); await usb.open(); leerLoopUSB();
+      log("Conectado por WebUSB (CP210x).","ok");
+    } else { log("Tu navegador no soporta Web Serial ni WebUSB. Usa Chrome.","err"); return; }
     $("estado").textContent="Conectado"; $("estado").classList.add("on");
     $("btnConn").disabled=true; $("btnDisc").disabled=false;
     ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnSniff","btnClonar","btnIdent","btnProto","btnCiclo","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=false);
@@ -843,9 +869,19 @@ async function conectar(){
     setTimeout(()=>enviar("?"),400);
   }catch(e){ log("No se pudo abrir el puerto: "+e,"err"); }
 }
+async function leerLoopUSB(){
+  const dec=new TextDecoder();
+  try{
+    while(usb){
+      const chunk=await usb.read();
+      if(chunk && chunk.length){ lineBuf += dec.decode(chunk);
+        let idx; while((idx=lineBuf.indexOf("\n"))>=0){ const linea=lineBuf.slice(0,idx).replace(/\r/g,"").trim(); lineBuf=lineBuf.slice(idx+1); if(linea) manejarLinea(linea); } }
+    }
+  }catch(e){ log("Lectura USB detenida: "+e,"warn"); }
+}
 async function desconectar(){
-  try{ if(reader){await reader.cancel();} if(writer){writer.releaseLock();} if(port){await port.close();} }catch(e){}
-  port=null;writer=null;reader=null;
+  try{ if(reader){await reader.cancel();} if(writer){writer.releaseLock();} if(port){await port.close();} if(usb){await usb.close();} }catch(e){}
+  port=null;writer=null;reader=null;usb=null;
   $("estado").textContent="Desconectado"; $("estado").classList.remove("on");
   $("btnConn").disabled=false; $("btnDisc").disabled=true;
   ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnBuscar","btnSniff","btnClonar","btnIdent","btnStop","btnProto","btnCiclo","btnCicloStop","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=true);
@@ -873,8 +909,9 @@ async function leerLoop(){
   finally{ try{reader.releaseLock();}catch(e){} }
 }
 async function enviar(cmd){
-  if(!writer){ log("No conectado.","err"); return; }
-  await writer.write(new TextEncoder().encode(cmd+"\n"));
+  if(writer){ await writer.write(new TextEncoder().encode(cmd+"\n")); }
+  else if(usb){ await usb.write(cmd+"\n"); }
+  else { log("No conectado.","err"); return; }
   log("→ "+cmd,"dim");
 }
 
