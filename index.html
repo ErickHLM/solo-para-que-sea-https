@@ -832,18 +832,22 @@ function detenerCaptura(){
 let usb=null;
 class CP210x{
   async open(){
-    this.dev=await navigator.usb.requestDevice({filters:[{vendorId:0x10C4}]});
-    await this.dev.open();
-    if(!this.dev.configuration) await this.dev.selectConfiguration(1);
-    const itf=this.dev.configuration.interfaces[0];
-    this.ifn=itf.interfaceNumber;
-    await this.dev.claimInterface(this.ifn);
-    const alt=itf.alternate||itf.alternates[0];
-    this.epIn=null; this.epOut=null;
-    for(const ep of alt.endpoints){ if(ep.type==='bulk'){ if(ep.direction==='in')this.epIn=ep.endpointNumber; else this.epOut=ep.endpointNumber; } }
-    await this.ctl(0x00,0x0001);   // IFC_ENABLE (habilita UART)
-    await this.ctl(0x03,0x0800);   // SET_LINE_CTL 8N1
-    await this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:0x1E,value:0,index:this.ifn}, new Uint8Array(new Uint32Array([115200]).buffer)); // SET_BAUDRATE 115200
+    let paso="elegir dispositivo";
+    try{
+      this.dev=await navigator.usb.requestDevice({filters:[]});   // sin filtro: lista todos
+      log("USB elegido: "+(this.dev.productName||"?")+" ("+this.dev.vendorId.toString(16)+":"+this.dev.productId.toString(16)+")","dim");
+      paso="abrir"; await this.dev.open();
+      paso="configuracion"; if(!this.dev.configuration) await this.dev.selectConfiguration(1);
+      const itf=this.dev.configuration.interfaces[0];
+      this.ifn=itf.interfaceNumber;
+      paso="reclamar interfaz "+this.ifn; await this.dev.claimInterface(this.ifn);
+      const alt=itf.alternate||itf.alternates[0];
+      this.epIn=null; this.epOut=null;
+      for(const ep of alt.endpoints){ if(ep.type==='bulk'){ if(ep.direction==='in')this.epIn=ep.endpointNumber; else this.epOut=ep.endpointNumber; } }
+      if(this.epIn==null||this.epOut==null) throw new Error("sin endpoints bulk (¿chip no CP210x?)");
+      paso="configurar UART"; await this.ctl(0x00,0x0001); await this.ctl(0x03,0x0800);
+      await this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:0x1E,value:0,index:this.ifn}, new Uint8Array(new Uint32Array([115200]).buffer));
+    }catch(e){ throw new Error("fallo en ["+paso+"]: "+(e.message||e)); }
   }
   ctl(req,val){ return this.dev.controlTransferOut({requestType:'vendor',recipient:'interface',request:req,value:val,index:this.ifn}); }
   async write(s){ await this.dev.transferOut(this.epOut, new TextEncoder().encode(s)); }
