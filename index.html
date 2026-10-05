@@ -338,7 +338,7 @@
       <button id="tvSave" disabled>💾 Guardar en el dron</button>
       <button id="tvReset" class="warn" disabled>↩ Restaurar</button>
       <button id="tvGps" class="ghost" disabled>📡 GPS: —</button>
-      <button id="tvCal" class="ghost" disabled>🎯 Calibrar giro</button>
+      <button id="tvCal" class="ghost" disabled>🎯 Calibrar (giro + NIVEL)</button>
     </div>
     <h2 style="margin-top:16px">Visualización <span class="tag">(banco, sin hélices)</span></h2>
     <div class="grid g2">
@@ -1070,6 +1070,7 @@ showTab('ayuda');
     {cmd:"kpy",el:"tvKpy",nm:"Giro · Rumbo",step:0.1,min:0,max:10},
     {cmd:"kdr",el:"tvKdr",nm:"Amortiguación · Balanceo",step:0.01,min:0,max:1},
     {cmd:"kdp",el:"tvKdp",nm:"Amortiguación · Cabeceo",step:0.01,min:0,max:1},
+    {cmd:"ki", el:"tvKi", nm:"Anti-deriva (integral)",step:0.1,min:0,max:5},
     {cmd:"ang",el:"tvAng",nm:"Inclinación máxima (grados)",step:1,min:5,max:60},
     {cmd:"idle",el:"tvIdle",nm:"Ralentí al armar",step:10,min:0,max:1023},
     {cmd:"tope",el:"tvTope",nm:"Potencia máxima",step:20,min:0,max:1023},
@@ -1127,7 +1128,7 @@ showTab('ayuda');
   function lock(l){ if(l===cfgLocked)return; cfgLocked=l; document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=l); ['tvSave','tvReset','tvCal'].forEach(id=>{const e=$(id);if(e)e.disabled=l;}); const s=$("tvCfgState"); if(s){ s.textContent=l?"🔒 en vuelo — desarma para configurar":"editable"; s.className="pill"+(l?"":" on"); } }
 
   window.tvParams=function(line){ const p=line.split(","); if(p.length<9)return; tvShow();
-    const m={tvKpr:1,tvKpp:2,tvKpy:3,tvKdr:4,tvKdp:5,tvAng:6,tvIdle:7,tvTope:8};
+    const m={tvKpr:1,tvKpp:2,tvKpy:3,tvKdr:4,tvKdp:5,tvAng:6,tvIdle:7,tvTope:8,tvKi:10};
     for(const id in m){ const e=$(id); if(e&&!cfgLocked) e.value=p[m[id]]; }
     if(p[9]!==undefined){ tvGpsHab=(+p[9])===1; const g=$("tvGps"); if(g){ g.textContent="📡 GPS: "+(tvGpsHab?"ON":"OFF"); g.className="ghost"+(tvGpsHab?"":""); } } };
 
