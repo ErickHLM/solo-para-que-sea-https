@@ -1065,15 +1065,14 @@ showTab('ayuda');
 /* ===== Telemetria y vuelo del dron DIY (se muestra solo si llegan lineas TEL,) ===== */
 (function(){
   const TVP=[
-    {cmd:"kpr",el:"tvKpr",nm:"Nivelado · Balanceo",step:0.1,min:0,max:10},
-    {cmd:"kpp",el:"tvKpp",nm:"Nivelado · Cabeceo",step:0.1,min:0,max:10},
-    {cmd:"kpy",el:"tvKpy",nm:"Giro · Rumbo",step:0.1,min:0,max:10},
-    {cmd:"kdr",el:"tvKdr",nm:"Amortiguación · Balanceo",step:0.01,min:0,max:1},
-    {cmd:"kdp",el:"tvKdp",nm:"Amortiguación · Cabeceo",step:0.01,min:0,max:1},
-    {cmd:"ki", el:"tvKi", nm:"Anti-deriva (integral)",step:0.1,min:0,max:5},
-    {cmd:"ang",el:"tvAng",nm:"Inclinación máxima (grados)",step:1,min:5,max:60},
-    {cmd:"idle",el:"tvIdle",nm:"Ralentí al armar",step:10,min:0,max:1023},
-    {cmd:"tope",el:"tvTope",nm:"Potencia máxima",step:20,min:0,max:1023},
+    {cmd:"angp", el:"tvAngp", nm:"Nivelado (firmeza)",step:0.5,min:0,max:20},
+    {cmd:"ratep",el:"tvRatep",nm:"Velocidad · P (principal)",step:0.05,min:0,max:5},
+    {cmd:"ratei",el:"tvRatei",nm:"Velocidad · I (anti-deriva)",step:0.05,min:0,max:5},
+    {cmd:"rated",el:"tvRated",nm:"Velocidad · D (amortiguación)",step:0.001,min:0,max:0.1},
+    {cmd:"yawp", el:"tvYawp", nm:"Giro · Rumbo (yaw)",step:0.1,min:0,max:5},
+    {cmd:"ang",  el:"tvAng",  nm:"Inclinación máxima (grados)",step:1,min:5,max:60},
+    {cmd:"idle", el:"tvIdle", nm:"Ralentí al armar",step:10,min:0,max:1023},
+    {cmd:"tope", el:"tvTope", nm:"Potencia máxima",step:20,min:0,max:1023},
   ];
   const box=$("tvCfgBox");
   if(box) box.innerHTML=TVP.map(p=>`<div class="tv-cfg"><div>${p.nm}<div style="font-size:11px;color:var(--dim)">rango ${p.min}–${p.max}</div></div><input type="number" id="${p.el}" step="${p.step}" min="${p.min}" max="${p.max}" disabled><button class="ghost tvap" data-cmd="${p.cmd}" data-el="${p.el}" disabled>Aplicar</button></div>`).join("");
@@ -1128,7 +1127,7 @@ showTab('ayuda');
   function lock(l){ if(l===cfgLocked)return; cfgLocked=l; document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=l); ['tvSave','tvReset','tvCal'].forEach(id=>{const e=$(id);if(e)e.disabled=l;}); const s=$("tvCfgState"); if(s){ s.textContent=l?"🔒 en vuelo — desarma para configurar":"editable"; s.className="pill"+(l?"":" on"); } }
 
   window.tvParams=function(line){ const p=line.split(","); if(p.length<9)return; tvShow();
-    const m={tvKpr:1,tvKpp:2,tvKpy:3,tvKdr:4,tvKdp:5,tvAng:6,tvIdle:7,tvTope:8,tvKi:10};
+    const m={tvAngp:1,tvRatep:2,tvRatei:3,tvRated:4,tvYawp:5,tvAng:6,tvIdle:7,tvTope:8};
     for(const id in m){ const e=$(id); if(e&&!cfgLocked) e.value=p[m[id]]; }
     if(p[9]!==undefined){ tvGpsHab=(+p[9])===1; const g=$("tvGps"); if(g){ g.textContent="📡 GPS: "+(tvGpsHab?"ON":"OFF"); g.className="ghost"+(tvGpsHab?"":""); } } };
 
