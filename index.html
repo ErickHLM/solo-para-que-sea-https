@@ -297,10 +297,12 @@
       <span style="flex:1"></span>
       <button id="btnModoNRF" disabled>🛩️ Drones (nRF24)</button>
       <button id="btnModoESPNOW" class="ghost" disabled>🚁 Dron DIY (ESP-NOW)</button>
+      <button id="btnModoESPFC" class="ghost" disabled>🛸 Dron esp-fc (ESP-NOW)</button>
       <button id="btnModoBLE" class="ghost" disabled>🎮 Simulador (BLE)</button>
     </div>
     <p class="hint">
       <b>Drones (nRF24)</b>: pilota tus drones reales con los perfiles. ·
+      <b>Dron esp-fc</b>: el dron DIY con firmware esp-fc (estable tipo Betaflight); armar = gas abajo + yaw derecha (o mantener L3 1 s), desarmar = gas abajo + yaw izquierda (o pulsar L3). ·
       <b>Simulador (BLE)</b>: el mando se vuelve un gamepad Bluetooth para el PC (empareja
       "Mando Dron DIY"). Al cambiar, el ESP32 <b>se reinicia</b> en ese modo (~2 s) y tendrás que
       <b>reconectar por USB</b> aquí. En modo BLE no hay radio nRF24 (y viceversa), así que no interfieren.
@@ -321,6 +323,7 @@
       <div><span id="tvLink" class="pill">—</span> <span id="tvArm" class="pill">desarmado</span></div>
       <div>🛰️ <b id="tvSats">0</b> sat · <span id="tvFix">—</span></div>
       <div>📶 RSSI <b id="tvRssi">—</b></div>
+      <div id="tvBatRow" style="display:none">🔋 <b id="tvBat">—</b> <span id="tvFcInfo" class="pill">—</span></div>
       <div>🏠 <b id="tvDist">—</b> · rumbo <span id="tvBrg">—</span></div>
       <div>R <b id="tvRoll">0°</b> · P <b id="tvPitch">0°</b> · Y <b id="tvYaw">0°</b></div>
     </div>
@@ -870,7 +873,7 @@ async function conectar(){
     } else { log("Tu navegador no soporta Web Serial ni WebUSB. Usa Chrome.","err"); return; }
     $("estado").textContent="Conectado"; $("estado").classList.add("on");
     $("btnConn").disabled=true; $("btnDisc").disabled=false;
-    ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnSniff","btnClonar","btnIdent","btnProto","btnCiclo","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=false);
+    ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnSniff","btnClonar","btnIdent","btnProto","btnCiclo","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoESPFC","btnModoBLE"].forEach(b=>$(b).disabled=false);
     setTimeout(()=>enviar("MODO?"),250);
     log("Conectado.","ok");
     setTimeout(()=>enviar("?"),400);
@@ -895,7 +898,7 @@ async function desconectar(){
   try{ if(u) await u.close(); }catch(e){}
   $("estado").textContent="Desconectado"; $("estado").classList.remove("on");
   $("btnConn").disabled=false; $("btnDisc").disabled=true;
-  ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnBuscar","btnSniff","btnClonar","btnIdent","btnStop","btnProto","btnCiclo","btnCicloStop","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoBLE"].forEach(b=>$(b).disabled=true);
+  ["btnLeer","btnEnviar","btnSave","btnBind","btnFondo","btnBuscar","btnSniff","btnClonar","btnIdent","btnStop","btnProto","btnCiclo","btnCicloStop","btnPerfCargar","btnPerfLeer","btnPerfSave","btnModoNRF","btnModoESPNOW","btnModoESPFC","btnModoBLE"].forEach(b=>$(b).disabled=true);
   if(window.tvHide) tvHide();
   if(window.tabsForMode){ tabsForMode(''); showTab('ayuda'); }
   capturando=null; fase=null; baselineListo=false; cicloActivo=false; setCapEstado("Detenido");
@@ -932,6 +935,7 @@ async function enviar(cmd){
 function manejarLinea(l){
   if(l.startsWith("TEL,")){ tvParse(l); return; }        // telemetria del dron DIY (via mando)
   if(l.startsWith("PARAMS,")){ tvParams(l); return; }     // ajustes de vuelo del dron
+  if(l.startsWith("FC,")){ tvFc(l); return; }             // bateria/failsafe del dron esp-fc
   const eq=l.indexOf("=");
   const k = eq<0 ? "" : l.slice(0,eq);
   // Las lineas de captura son muy frecuentes: no las volcamos en la consola.
@@ -945,7 +949,8 @@ function manejarLinea(l){
       addPerfilOpcion(o.nombre+" (del mando)",o,true); log("Perfil leído del mando: "+o.nombre,"ok"); } return; }
   if(k==="PROFILE_ON"){ log("Perfil activo: "+l.slice(11),"ok"); return; }
   if(k==="MODO"){ const m=l.slice(5).trim();
-    $("modoActual").textContent = m==="BLE" ? "🎮 Simulador (BLE)" : (m==="ESPNOW" ? "🚁 Dron DIY (ESP-NOW)" : "🛩️ Drones (nRF24)");
+    $("modoActual").textContent = m==="BLE" ? "🎮 Simulador (BLE)" : (m==="ESPNOW" ? "🚁 Dron DIY (ESP-NOW)" : (m==="ESPFC" ? "🛸 Dron esp-fc (ESP-NOW)" : "🛩️ Drones (nRF24)"));
+    window._modo=m;
     $("modoActual").className = "pill on";
     if(m==="ESPNOW"){ setTimeout(()=>enviar("params"),500); }
     tabsForMode(m);
@@ -1043,13 +1048,14 @@ $("btnSave").onclick=()=>enviar("SAVE");
 $("btnBind").onclick=()=>{ if(confirm("Enciende el dron a ~30 cm. ¿Lanzar BIND?")) enviar("BIND"); };
 $("btnModoBLE").onclick=()=>{ if(confirm("Cambiar a modo SIMULADOR (gamepad BLE)?\nEl ESP32 se reinicia y tendrás que reconectar por USB. Empareja 'Mando Dron DIY' en el PC.")){ enviar("MODO=BLE"); setTimeout(desconectar,600); } };
 $("btnModoNRF").onclick=()=>{ if(confirm("Cambiar a modo DRONES (nRF24)?\nEl ESP32 se reinicia y tendrás que reconectar por USB.")){ enviar("MODO=NRF"); setTimeout(desconectar,600); } };
+$("btnModoESPFC").onclick=()=>{ if(confirm("Cambiar a modo DRON esp-fc (ESP-NOW)?\nEl ESP32 se reinicia; reconecta por USB. Enciende primero el mando y luego el dron.")){ enviar("MODO=ESPFC"); setTimeout(desconectar,600); } };
 $("btnModoESPNOW").onclick=()=>{ if(confirm("Cambiar a modo DRON DIY (ESP-NOW)?\nEl ESP32 se reinicia; reconecta por USB. Verás la telemetría del dron DIY.")){ enviar("MODO=ESPNOW"); setTimeout(desconectar,600); } };
 navigator.serial && navigator.serial.addEventListener("disconnect",()=>desconectar());
 navigator.usb && navigator.usb.addEventListener("disconnect",()=>{ if(usb) desconectar(); });
 
 // ---- Pestañas (disponibles según el modo del mando) ----
 function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.dataset.tab; if(g) c.style.display=(g===t||g==='always')?'block':'none'; }); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t)); window._tab=t; if(window.tvOnTab) tvOnTab(t); }
-function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab(m==='ESPNOW'?'vuelo':(m==='NRF'?'clonar':'general')); }
+function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='ESPFC')vis=['vuelo','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab((m==='ESPNOW'||m==='ESPFC')?'vuelo':(m==='NRF'?'clonar':'general')); }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 showTab('ayuda');
 
@@ -1122,7 +1128,7 @@ showTab('ayuda');
   function mostrarMapa(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display=''; if(r)r.style.display='none'; const b=$("tvMapToggle"); if(b)b.textContent="🧭 radar"; if(tmap)setTimeout(()=>{try{tmap.invalidateSize()}catch(e){}},150); }
   function mostrarRadar(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display='none'; if(r)r.style.display='block'; const b=$("tvMapToggle"); if(b)b.textContent="🗺️ mapa"; }
   window.tvOnTab=function(t){ if(t!=='vuelo')return; setTimeout(()=>{ if(verRadar){ mostrarRadar(); return; } const ok=initMap(); if(ok) mostrarMapa(); else { verRadar=true; mostrarRadar(); } },150); };
-  { const e=$("tvExit"); if(e) e.onclick=()=>showTab('dron'); }
+  { const e=$("tvExit"); if(e) e.onclick=()=>showTab(window._modo==='ESPFC'?'general':'dron'); }
   { const b=$("tvMapToggle"); if(b) b.onclick=()=>{ verRadar=!verRadar; if(verRadar) mostrarRadar(); else { if(!tmap) initMap(); mostrarMapa(); } }; }
   function lock(l){ if(l===cfgLocked)return; cfgLocked=l; document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=l); ['tvSave','tvReset','tvCal'].forEach(id=>{const e=$(id);if(e)e.disabled=l;}); const s=$("tvCfgState"); if(s){ s.textContent=l?"🔒 en vuelo — desarma para configurar":"editable"; s.className="pill"+(l?"":" on"); } }
 
@@ -1130,6 +1136,13 @@ showTab('ayuda');
     const m={tvAngp:1,tvRatep:2,tvRatei:3,tvRated:4,tvYawp:5,tvAng:6,tvIdle:7,tvTope:8};
     for(const id in m){ const e=$(id); if(e&&!cfgLocked) e.value=p[m[id]]; }
     if(p[9]!==undefined){ tvGpsHab=(+p[9])===1; const g=$("tvGps"); if(g){ g.textContent="📡 GPS: "+(tvGpsHab?"ON":"OFF"); g.className="ghost"+(tvGpsHab?"":""); } } };
+
+  // FC,vbat,celdas,failsafe,rxloss,bloqueosHex,cpu  (solo modo esp-fc)
+  window.tvFc=function(line){ const p=line.split(","); if(p.length<7)return;
+    const v=+p[1], c=+p[2], fs=+p[3], rl=+p[4], blq=parseInt(p[5],16)||0;
+    const r=$("tvBatRow"); if(r) r.style.display='';
+    const b=$("tvBat"); if(b){ b.textContent=v>0?(v.toFixed(2)+" V"+(c?(" · "+(v/c).toFixed(2)+" V/celda"):"")):"—"; b.style.color=(c&&v/c<3.5)?"#ff6b6b":""; }
+    const i=$("tvFcInfo"); if(i){ i.textContent=fs?"FAILSAFE":(rl?"sin señal":(blq?"no puede armar":"listo")); i.className="pill"+((fs||rl||blq)?" listen":" on"); } };
 
   window.tvParse=function(line){ const p=line.split(","); if(p.length<18)return; tvShow();
     const roll=+p[1],pitch=+p[2],yaw=+p[3];
