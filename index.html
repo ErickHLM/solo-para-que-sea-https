@@ -334,7 +334,23 @@
     </div>
   </div>
 
-  <div class="card" id="cardDron" data-tab="dron">
+  <div class="card" id="cardFcPid" data-tab="dron" data-modo="ESPFC">
+    <h2>🎛️ Ajuste PID del dron (esp-fc) <span id="fpEstado" class="pill">—</span></h2>
+    <p class="hint">Se mandan por la radio del mando y se aplican <b>al momento</b>, solo con el dron
+      <b>DESARMADO</b>. Prueba, aterriza, ajusta y vuelve a probar. <b>Guardar</b> los deja fijos al reiniciar.
+      Oscila rápido (3–4 veces/s, peor con gas) → <b>Más suave</b>. Blando, balanceo lento → <b>Más firme</b>.</p>
+    <div id="fpBox" class="grid g2"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="fpLeer" class="ghost">📥 Leer del dron</button>
+      <button id="fpAplicar">✅ Aplicar</button>
+      <button id="fpSuave" class="ghost">🧘 Más suave (P −5)</button>
+      <button id="fpFirme" class="ghost">💪 Más firme (P +5)</button>
+      <button id="fpGuardar">💾 Guardar en el dron</button>
+      <button id="fpReboot" class="warn">↻ Reiniciar dron</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardDron" data-tab="dron" data-nomodo="ESPFC">
     <h2>⚙️ Ajustes del dron <span id="tvCfgState" class="pill">—</span></h2>
     <div id="tvCfgBox"></div>
     <div class="row" style="margin-top:12px">
@@ -936,6 +952,9 @@ function manejarLinea(l){
   if(l.startsWith("TEL,")){ tvParse(l); return; }        // telemetria del dron DIY (via mando)
   if(l.startsWith("PARAMS,")){ tvParams(l); return; }     // ajustes de vuelo del dron
   if(l.startsWith("FC,")){ tvFc(l); return; }             // bateria/failsafe del dron esp-fc
+  if(l.startsWith("set ") && window.fpParse && fpParse(l)) return;   // valor leido de la consola del dron
+  if(l.startsWith("# DRON ARMADO") && window.fpAviso) fpAviso("dron armado: desarma","listen");
+  if(l.startsWith("# Saved") && window.fpAviso) fpAviso("guardado en el dron ✔","on");
   const eq=l.indexOf("=");
   const k = eq<0 ? "" : l.slice(0,eq);
   // Las lineas de captura son muy frecuentes: no las volcamos en la consola.
@@ -954,6 +973,7 @@ function manejarLinea(l){
     $("modoActual").className = "pill on";
     if(m==="ESPNOW"){ setTimeout(()=>enviar("params"),500); }
     tabsForMode(m);
+    showTab(window._tab||'ayuda');   // re-evalua tarjetas que dependen del modo
     return; }
   if(k==="GOTADDR"){ $("addr").value=l.slice(8).trim().toUpperCase(); mostrarClonEncontrado(); return; }
   if(k==="GOTCHAN"){ $("chan").value=l.slice(8).trim(); mostrarClonEncontrado(); return; }
@@ -1054,8 +1074,9 @@ navigator.serial && navigator.serial.addEventListener("disconnect",()=>desconect
 navigator.usb && navigator.usb.addEventListener("disconnect",()=>{ if(usb) desconectar(); });
 
 // ---- Pestañas (disponibles según el modo del mando) ----
-function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.dataset.tab; if(g) c.style.display=(g===t||g==='always')?'block':'none'; }); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t)); window._tab=t; if(window.tvOnTab) tvOnTab(t); }
-function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='ESPFC')vis=['vuelo','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab((m==='ESPNOW'||m==='ESPFC')?'vuelo':(m==='NRF'?'clonar':'general')); }
+function showTab(t){ document.querySelectorAll('.card').forEach(c=>{ const g=c.dataset.tab; if(g) c.style.display=(g===t||g==='always')?'block':'none';
+    if((c.dataset.modo && c.dataset.modo!==window._modo) || (c.dataset.nomodo && c.dataset.nomodo===window._modo)) c.style.display='none'; }); document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t)); window._tab=t; if(window.tvOnTab) tvOnTab(t); }
+function tabsForMode(m){ let vis; if(m==='ESPNOW')vis=['vuelo','dron','general','ayuda']; else if(m==='ESPFC')vis=['vuelo','dron','general','ayuda']; else if(m==='BLE')vis=['general','ayuda']; else if(m==='NRF')vis=['general','clonar','perfiles','ayuda']; else vis=['ayuda','general','clonar','perfiles','dron','vuelo']; document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('hidden',!vis.includes(b.dataset.t))); if(!vis.includes(window._tab)) showTab((m==='ESPNOW'||m==='ESPFC')?'vuelo':(m==='NRF'?'clonar':'general')); }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 showTab('ayuda');
 
@@ -1128,7 +1149,7 @@ showTab('ayuda');
   function mostrarMapa(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display=''; if(r)r.style.display='none'; const b=$("tvMapToggle"); if(b)b.textContent="🧭 radar"; if(tmap)setTimeout(()=>{try{tmap.invalidateSize()}catch(e){}},150); }
   function mostrarRadar(){ const m=$("flyMap"),r=$("tvRadar"); if(m)m.style.display='none'; if(r)r.style.display='block'; const b=$("tvMapToggle"); if(b)b.textContent="🗺️ mapa"; }
   window.tvOnTab=function(t){ if(t!=='vuelo')return; setTimeout(()=>{ if(verRadar){ mostrarRadar(); return; } const ok=initMap(); if(ok) mostrarMapa(); else { verRadar=true; mostrarRadar(); } },150); };
-  { const e=$("tvExit"); if(e) e.onclick=()=>showTab(window._modo==='ESPFC'?'general':'dron'); }
+  { const e=$("tvExit"); if(e) e.onclick=()=>showTab('dron'); }
   { const b=$("tvMapToggle"); if(b) b.onclick=()=>{ verRadar=!verRadar; if(verRadar) mostrarRadar(); else { if(!tmap) initMap(); mostrarMapa(); } }; }
   function lock(l){ if(l===cfgLocked)return; cfgLocked=l; document.querySelectorAll('#tvCfgBox input,.tvap').forEach(e=>e.disabled=l); ['tvSave','tvReset','tvCal'].forEach(id=>{const e=$(id);if(e)e.disabled=l;}); const s=$("tvCfgState"); if(s){ s.textContent=l?"🔒 en vuelo — desarma para configurar":"editable"; s.className="pill"+(l?"":" on"); } }
 
@@ -1143,6 +1164,31 @@ showTab('ayuda');
     const r=$("tvBatRow"); if(r) r.style.display='';
     const b=$("tvBat"); if(b){ b.textContent=v>0?(v.toFixed(2)+" V"+(c?(" · "+(v/c).toFixed(2)+" V/celda"):"")):"—"; b.style.color=(c&&v/c<3.5)?"#ff6b6b":""; }
     const i=$("tvFcInfo"); if(i){ i.textContent=fs?"FAILSAFE":(rl?"sin señal":(blq?"no puede armar":"listo")); i.className="pill"+((fs||rl||blq)?" listen":" on"); } };
+
+  // ===== Ajuste PID remoto (modo esp-fc): set/get/save por la consola del dron via ESP-NOW =====
+  const FP=[["pid_roll_p","Alabeo · P"],["pid_roll_i","Alabeo · I"],["pid_roll_d","Alabeo · D"],
+    ["pid_pitch_p","Cabeceo · P"],["pid_pitch_i","Cabeceo · I"],["pid_pitch_d","Cabeceo · D"],
+    ["pid_yaw_p","Giro (yaw) · P"],["pid_yaw_i","Giro (yaw) · I"],["pid_level_p","Autonivelado (ANGLE)"],
+    ["pid_level_angle_limit","Inclinación máxima (°)"],["pid_tpa_scale","TPA: % que baja P/D a fondo de gas"],
+    ["pid_tpa_breakpoint","TPA: desde gas (1000–2000)"],["output_motor_idle","Ralentí (0,1 %) · requiere reiniciar"]];
+  const fpBox=$("fpBox");
+  if(fpBox) fpBox.innerHTML=FP.map(([k,n])=>`<div class="tv-cfg"><div>${n}</div><input type="number" id="fp_${k}" step="1"></div>`).join("");
+  const fpLeido={};
+  window.fpAviso=function(t,c){ const e=$("fpEstado"); if(e){ e.textContent=t; e.className="pill"+(c?" "+c:""); } };
+  window.fpParse=function(line){ const m=line.match(/^set (\S+) (.+)$/); if(!m) return false;
+    const e=$("fp_"+m[1]); if(!e) return false; e.value=m[2].trim(); fpLeido[m[1]]=e.value; fpAviso("leído del dron","on"); return true; };
+  function fpSecuencia(cmds){ cmds.forEach((c,i)=>setTimeout(()=>enviar(c),i*250)); }
+  function fpAplicar(){ const cmds=FP.map(([k])=>[k,($("fp_"+k)||{}).value]).filter(([k,v])=>v!==undefined&&v!==""&&v!==fpLeido[k]).map(([k,v])=>"set "+k+" "+v);
+    if(!cmds.length){ fpAviso("sin cambios"); return; }
+    fpSecuencia(cmds); cmds.forEach(c=>{ const p=c.split(" "); fpLeido[p[1]]=p[2]; });
+    fpAviso("aplicado ("+cmds.length+") — prueba y luego Guardar","listen"); }
+  function fpPaso(d){ ["pid_roll_p","pid_pitch_p"].forEach(k=>{ const e=$("fp_"+k); if(e&&e.value!=="") e.value=Math.max(5,(+e.value)+d); }); fpAplicar(); }
+  { const b=$("fpLeer"); if(b) b.onclick=()=>{ fpAviso("leyendo..."); fpSecuencia(["get pid_","get output_motor_idle"]); }; }
+  { const b=$("fpAplicar"); if(b) b.onclick=fpAplicar; }
+  { const b=$("fpSuave"); if(b) b.onclick=()=>fpPaso(-5); }
+  { const b=$("fpFirme"); if(b) b.onclick=()=>fpPaso(5); }
+  { const b=$("fpGuardar"); if(b) b.onclick=()=>enviar("save"); }
+  { const b=$("fpReboot"); if(b) b.onclick=()=>{ if(confirm("¿Reiniciar el dron? (necesario tras cambiar el ralentí)")) enviar("reboot"); }; }
 
   window.tvParse=function(line){ const p=line.split(","); if(p.length<18)return; tvShow();
     const roll=+p[1],pitch=+p[2],yaw=+p[3];
