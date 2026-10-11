@@ -348,6 +348,12 @@
       <button id="fpGuardar">💾 Guardar en el dron</button>
       <button id="fpReboot" class="warn">↻ Reiniciar dron</button>
     </div>
+    <h2 style="margin-top:16px">📶 Modo mantenimiento (WiFi) <span class="tag">(solo desarmado)</span></h2>
+    <p class="hint">Para <b>actualizar el firmware</b> o usar <b>Betaflight App</b> sin cable. El dron abre su WiFi
+      <b>ESP-FC</b> y <b>no se puede armar</b> hasta reiniciarlo. Conecta el PC/celular a esa WiFi y abre
+      <b>http://192.168.4.1/</b> para subir <b>firmware_x8c.bin</b>, o en Betaflight App (Opciones → modo experto)
+      conexión manual <b>tcp://192.168.4.1:1111</b>. Al terminar: <b>Reiniciar dron</b>.</p>
+    <div class="row"><button id="fpWifi" class="ghost">📶 Activar modo mantenimiento</button></div>
   </div>
 
   <div class="card" id="cardDron" data-tab="dron" data-nomodo="ESPFC">
@@ -955,6 +961,7 @@ function manejarLinea(l){
   if(l.startsWith("set ") && window.fpParse && fpParse(l)) return;   // valor leido de la consola del dron
   if(l.startsWith("# DRON ARMADO") && window.fpAviso) fpAviso("dron armado: desarma","listen");
   if(l.startsWith("# Saved") && window.fpAviso) fpAviso("guardado en el dron ✔","on");
+  if(l.startsWith("# MODO MANTENIMIENTO") && window.fpAviso) fpAviso("mantenimiento WiFi activo","listen");
   const eq=l.indexOf("=");
   const k = eq<0 ? "" : l.slice(0,eq);
   // Las lineas de captura son muy frecuentes: no las volcamos en la consola.
@@ -1188,6 +1195,7 @@ showTab('ayuda');
   { const b=$("fpSuave"); if(b) b.onclick=()=>fpPaso(-5); }
   { const b=$("fpFirme"); if(b) b.onclick=()=>fpPaso(5); }
   { const b=$("fpGuardar"); if(b) b.onclick=()=>enviar("save"); }
+  { const b=$("fpWifi"); if(b) b.onclick=()=>{ if(confirm("¿Activar el modo mantenimiento? El dron no podrá armarse hasta que lo reinicies.")) enviar("wifi"); }; }
   { const b=$("fpReboot"); if(b) b.onclick=()=>{ if(confirm("¿Reiniciar el dron? (necesario tras cambiar el ralentí)")) enviar("reboot"); }; }
 
   window.tvParse=function(line){ const p=line.split(","); if(p.length<18)return; tvShow();
